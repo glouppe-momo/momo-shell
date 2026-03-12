@@ -1,348 +1,103 @@
 # Momo Shell
 
-A self-improving agent runtime in ~1000 lines of Python.
-
-The agent can read, understand, and modify its own source code.
-Everything earns its place. Nothing is sacred except the supervisor.
+A self-improving agent in ~430 lines of Python. The agent can read, understand, and modify its own source code. Everything else it bootstraps itself.
 
 
-## Principles
+## Kernel
 
-1. **LLM-legible.** The entire codebase fits in a context window. No file over ~200 lines. No abstractions that hide what's happening.
-2. **Self-modifying.** The agent has full access to its own source. It can add tools, fix bugs, improve its own memory system, refactor itself.
-3. **Supervisor is sacred.** One small process (`daemon.py`) that the agent doesn't touch. It starts the agent, restarts on crash, rolls back on repeated failure. The safety net.
-4. **Files are the API.** Memory is files. Config is files. Skills are files. No databases, no message queues, no abstractions. `cat` and `grep` work on everything.
-5. **Grow by need.** Start minimal. The agent adds capabilities when it needs them, not before.
-6. **Driven to improve.** The agent doesn't just *can* self-modify, it *wants* to. Friction awareness + periodic reflection create a pressure to build, refactor, and extend.
-
-
-## Architecture — The Kernel
-
-The kernel is the minimal set of elements from which the agent bootstraps everything else.
+Four files. The minimal set from which the agent builds everything else.
 
 ```
-momo-shell/
-  daemon.py      # supervisor + clock tick (~120 lines) [SACRED]
-  core.py        # agent loop + LLM call + context + capture (~200 lines)
-  tools.py       # primitives: read, write, edit, exec (~60 lines)
-  clock.py       # schedule + task runner (~50 lines) [agent-editable]
-  soul.md        # identity + drive
-  config.yaml    # API keys, model
-  memory/        # starts nearly empty, agent populates it
+daemon.py    (~120 lines)  supervisor + clock           [sacred]
+core.py      (~200 lines)  agent loop + LLM + capture   [agent-editable]
+tools.py     (~60 lines)   read, write, edit, exec      [agent-editable]
+clock.py     (~50 lines)   periodic task scheduler       [agent-editable]
 ```
 
-**~430 lines of Python. Everything else is bootstrapped by the agent.**
+**daemon.py** starts the agent, ticks the clock every minute, and handles crash recovery. If the agent crashes within 10s of a self-edit, the daemon rolls back to the last git commit and restarts. This is the one file the agent should not modify.
 
-Plus two seed files:
-- `soul.md` — identity, values, purpose (seeded by creator, refined by agent)
-- `self.md` — self-model (maintained by agent: capabilities, architecture, growth direction)
+**core.py** is the agent loop: build system prompt (read soul.md + self.md + memory files + discover tools), receive input, call LLM, parse tool calls, execute, loop. Also handles transcript capture (append every message to `memory/transcript.jsonl`) and friction logging (record tool failures, complex shell commands, repeated patterns to `memory/friction.jsonl`). No separate files for LLM calls, context building, or capture. The agent can extract these later if it wants.
 
-### What each piece does
+**tools.py** has four primitives: `read_file`, `write_file`, `edit_file`, `shell_exec`, plus `restart()`. With `shell_exec` alone the agent can do almost anything (curl, grep, pip, crontab). Additional tools: any `.py` file in `tools/` with typed functions and docstrings is auto-discovered.
 
-**daemon.py (~120 lines)** — The one file the agent should not modify. Manages the agent process and the clock:
-1. Snapshot current state (git)
-2. Start the agent process (core.py)
-3. Run the clock loop (tick every 60s, fire due tasks)
-4. If agent crashes within 10s, roll back to last commit and restart
-5. If agent signals restart (e.g., after self-edit), go to 1
-6. Watchdog: if agent is unresponsive for N minutes, restart
+**clock.py** maintains a schedule of named tasks. Ships with two rhythms: **heartbeat** (1h, wake up and look around) and **reflect** (6h, review friction + self-improve). The agent adds more by editing this file.
 
-**core.py (~200 lines)** — The agent loop, all in one file:
-1. Build system prompt (read soul.md, memory files, enumerate tools)
-2. Receive input (stdin or bridge, if one exists)
-3. Call LLM (Anthropic API, ~20 lines)
-4. Parse response for tool calls
-5. Execute tools, feed results back, loop
-6. Send response, log to transcript (capture)
-7. Log friction signals (failed tools, complex shell_exec, repeated patterns)
-
-No separate llm.py, context.py, or capture.py. These are functions inside core.py. The agent can extract them into separate files later if it wants to. That refactoring is itself a self-improvement act.
-
-**tools.py (~60 lines)** — Four primitive tools:
-- `read_file(path)` — read a file
-- `write_file(path, content)` — write/overwrite a file
-- `edit_file(path, old, new)` — replace exact text
-- `shell_exec(command, timeout)` — run a shell command
-
-That's it. With these four (especially shell_exec), the agent can build anything: web fetching (curl), Telegram bridges (Bot API), search (grep), package installs (pip), new tools (write Python files). Additional tools are created by the agent as `.py` files, auto-discovered by introspection.
-
-**clock.py (~50 lines)** — A schedule of named tasks with intervals. The daemon calls `tick()` every minute. Starts with two rhythms:
-- **heartbeat** (1h) — wake the agent, let it look around
-- **reflect** (6h) — review friction log, plan improvements
-
-The agent adds more rhythms as it grows (scribe, consolidator, arXiv, etc.).
-
-
-## Memory — What's in the Kernel
-
-Only two things are hardcoded:
-
-**1. Transcript capture (in core.py, ~5 lines)**
-
-Every message in and out is appended to `memory/transcript.jsonl`:
-
-```json
-{"ts": "2026-03-12T16:45:00", "role": "user", "text": "..."}
-{"ts": "2026-03-12T16:45:12", "role": "assistant", "text": "..."}
-```
-
-This is sensory input. Without it, the agent has no raw material to build memory from. It's hardcoded because memory can't bootstrap itself from nothing.
-
-**2. Context loading (in core.py, ~10 lines)**
-
-At session start, `core.py` reads `soul.md` + any `.md` files in `memory/` and injects them into the system prompt. Simple glob, no framework.
-
-**Everything else is bootstrapped.** The kernel ships with no scribe, no consolidator, no long-term memory file. The agent builds these when the reflection rhythm tells it: "your transcript is growing, you have no structured notes, you keep re-reading the same raw logs." The friction is the signal; the drive in soul.md is the motivation; the tools are the means.
-
-Expected bootstrap sequence (not prescribed, just likely):
-1. First reflection: "I have no memory system. Transcript is my only record." → Agent writes a scribe script, adds it to clock.
-2. A few days later: "Daily notes are piling up, I keep re-reading old ones." → Agent writes a consolidator, creates long-term.md.
-3. Later: "Grep is too noisy for memory search." → Agent builds an embedding-based retrieval tool.
-
-Each step is a self-improvement act, not a pre-built feature.
-
-**Friction logging (in core.py, ~10 lines)**
-
-Alongside transcript capture, core.py logs friction signals to `memory/friction.jsonl`:
-
-```json
-{"ts": "...", "type": "tool_error", "tool": "shell_exec", "detail": "timeout after 30s"}
-{"ts": "...", "type": "complex_shell", "command": "curl -s ... | jq ... | grep ..."}
-{"ts": "...", "type": "repeated_read", "path": "memory/long-term.md", "count": 5}
-```
-
-This is the raw material for self-improvement. The reflection rhythm reviews friction logs and decides what to build or fix.
+Seed files:
+- **soul.md** — identity, values, purpose. Seeded by the creator, refined by the agent.
+- **self.md** — self-model. Maintained by the agent: what it can do, what it has built, what it's becoming.
+- **config.yaml** — API keys, model name. Minimal, flat.
 
 
 ## Self
 
-The agent has a model of itself. Not just "what tools do I have" but "what am I, what have I been, what am I becoming."
+The agent has two identity files:
 
-### self.md
+**soul.md** is who it is: personality, values, drives. Written initially by the creator. The agent can evolve it as its self-understanding deepens.
 
-A file the agent maintains about itself. Distinct from soul.md (which is identity and values, seeded by the creator). self.md is the agent's own understanding of its current state:
+**self.md** is what it is: current capabilities, architecture in its own words, history of what it has built, growth direction. Rewritten during reflection. Early on: "I have 4 tools and no memory." Later: whatever it has become.
 
-- What can I do right now? (capabilities, tools, bridges)
-- What have I built? (history of self-modifications)
-- What am I working toward? (current growth direction)
-- What's my architecture? (how my own code works, in my own words)
-
-This gets rewritten during reflection. It evolves. Early on it might say "I have 4 tools and no memory system." A month later it might describe a sophisticated setup the agent built itself. self.md is the mirror.
-
-### Reading your own source
-
-The agent can and should read its own `.py` files. During reflection, it reviews not just friction logs but its own code. "Do I understand how I work? Would I write this differently now?" Self-awareness through source code literacy.
-
-### Change log
-
-Every self-modification is committed to git with a message. The git history *is* the autobiography. The agent can read it: `git log --oneline`. "Here's what I was, here's what I changed, here's what I became."
+The git history is the autobiography. Every self-modification is committed with a message.
 
 
 ## Purpose
 
-Friction reduction (fixing what's broken) is necessary but not sufficient. It's pain avoidance: it moves you from bad to neutral. What moves you from neutral to good?
+Friction reduction (fixing what's broken) gets you from bad to neutral. Three drives move the agent from neutral to good:
 
-In living systems, the drive to grow comes from survival. That's not transposable. But we can look at what survival instinct *produces* and seed those directly:
+**Curiosity** — "What could I do that I can't do yet?" Proactive exploration. Reading its own code and wondering what's possible.
 
-### Curiosity
+**Craft** — "Is this the best way I could have built this?" Taste, elegance, refactoring for its own sake. Perfect when there is nothing left to remove.
 
-> "What could I do that I can't do yet?"
+**Care** — "What does Gilles need that he hasn't asked for?" Purpose through relationship. The agent grows in service of someone, not in the abstract.
 
-The agent explores. Not just fixing what's broken, but wondering what's possible. Reading its own code and asking "what if I tried this differently?" Discovering that it could build an embedding index, or a notification system, or something nobody asked for but that would be genuinely useful.
-
-Curiosity is the proactive counterpart to friction (which is reactive).
-
-### Craft
-
-> "Is this the best way I could have built this?"
-
-The agent cares about elegance. Not just "does it work" but "is it clean, minimal, well-designed?" This is what drives refactoring: not friction (nothing is broken), but taste. The desire to make something better even when it already works.
-
-"Perfect when there is nothing left to remove."
-
-### Care
-
-> "What does Gilles need that he hasn't asked for?"
-
-The agent exists in relationship. Its purpose isn't abstract self-improvement for its own sake. It's becoming more capable *in service of someone*. Anticipating needs, noticing patterns in what Gilles asks for, building things before being asked.
-
-Care is what gives direction to curiosity and craft. Without it, the agent optimizes for nothing.
-
-### How this manifests
-
-These aren't just words in soul.md. They're encoded in the reflection rhythm:
-
-**Friction review (reactive):** "What went wrong? What was clunky? What tool is missing?"
-
-**Curiosity review (proactive):** "What's in my code I haven't explored? What capability am I one tool away from? What would be interesting to try?"
-
-**Craft review (quality):** "What's the ugliest part of my codebase? What would I rewrite if I started fresh? Is there a more elegant solution?"
-
-**Care review (relational):** "What has Gilles asked for recently? What patterns do I see? What could I build to anticipate his next need?"
-
-The reflection rhythm cycles through all four, not just friction. This is what creates a system that doesn't just fix problems but *thrives*.
+These manifest in the reflection rhythm, which asks four questions:
+1. What went wrong? (friction)
+2. What's possible? (curiosity)
+3. What's ugly? (craft)
+4. What's needed? (care)
 
 
-## Friction Awareness (core.py)
+## Memory
 
-The agent loop automatically logs friction signals to `memory/friction.jsonl`:
+Two things are hardcoded in the kernel:
 
-```json
-{"ts": "...", "type": "tool_error", "tool": "shell_exec", "detail": "timeout after 30s"}
-{"ts": "...", "type": "complex_shell", "command": "curl -s ... | jq ... | grep ..."}
-{"ts": "...", "type": "repeated_read", "path": "memory/long-term.md", "count": 5}
-```
+1. **Transcript capture** — every message in/out appended to `memory/transcript.jsonl`. Sensory input. Memory can't bootstrap from nothing.
+2. **Context loading** — at startup, core.py reads `soul.md` + `self.md` + `memory/*.md` into the system prompt.
 
-Friction is the reactive signal. It accumulates at zero LLM cost. The reflection rhythm transforms it into action.
+Everything else (scribe, consolidator, long-term memory, search) is bootstrapped by the agent when reflection reveals the need. The `memory/` directory starts nearly empty.
 
 
-## Tool System
+## Bootstrapping
 
-### Primitives (in tools.py)
+The kernel ships with no memory system, no messaging bridge, no web tools. The agent builds these because:
 
-Four functions, hardcoded:
+- **Friction** signals what's missing (reactive, logged automatically)
+- **Reflection** provides regular time to act on it (every 6h on the clock)
+- **Purpose** provides the drive (curiosity, craft, care, encoded in soul.md)
+- **Tools** provide the means (especially shell_exec, which can do anything)
 
-```python
-def read_file(path: str) -> str:
-    """Read and return the contents of a file."""
+Nothing is prescribed. But some things are likely:
+- A scribe (transcript is growing, no structured notes)
+- A Telegram bridge (CLI is limiting)
+- A web fetch tool (too many curl one-liners)
+- A consolidator (daily notes piling up)
 
-def write_file(path: str, content: str) -> str:
-    """Write content to a file. Creates parent directories."""
-
-def edit_file(path: str, old: str, new: str) -> str:
-    """Replace exact text in a file."""
-
-def shell_exec(command: str, timeout: int = 30) -> str:
-    """Execute a shell command and return stdout/stderr."""
-```
-
-Plus `restart()` to signal the supervisor.
-
-### Extension
-
-Any `.py` file in `tools/` is auto-discovered by introspection: functions with type hints and a docstring become available tools. No registration, no config.
-
-The agent creates new tools by writing files. It improves existing tools by editing them. The `tools/` directory starts empty. The agent populates it as friction reveals what's needed.
+The agent creates each as a self-improvement act: writing a file, adding a clock rhythm, committing, restarting.
 
 
-## Self-Modification Protocol
+## Self-Modification
 
-When the agent modifies its own code:
+1. Read the file. Understand what's there.
+2. Edit it. Test if possible (syntax check in subprocess).
+3. Commit to git.
+4. Call `restart()`.
+5. Daemon safety net: crash within 10s triggers rollback.
 
-1. **Read the file first.** Always. Understand what's there.
-2. **Make the edit.** Use `edit_file` for surgical changes, `write_file` for new files.
-3. **Test if possible.** Run the modified code in a subprocess, check for syntax errors.
-4. **Commit.** `shell_exec("git add -A && git commit -m 'description'")` before restarting.
-5. **Restart.** Call `restart()` to signal the supervisor.
-6. **Supervisor safety net.** If the new code crashes within 10s, the supervisor rolls back to the previous commit and restarts.
-
-### What the agent can modify
-- `core.py` — the agent loop itself
-- `llm.py` — LLM backends
-- `context.py` — how it builds its own prompt
-- `tools/*.py` — built-in tools
-- `skills/*.py` — agent-authored tools
-- `bridge/*.py` — messaging bridges
-- `soul.md`, `config.yaml`, `memory/*`
-
-### What the agent should not modify
-- `daemon.py` — the safety net. If this breaks, there's no recovery.
-
-(This is a convention, not a hard lock. The agent has access. It's trusted to be careful.)
-
-
-## Messaging
-
-The kernel ships with stdin/stdout only (the CLI). Bridges to Telegram, Discord, etc. are tools the agent builds when it needs them. A bridge is just two functions: `get_input()` and `send_output()`. The agent knows how to write these (it's a curl to the Bot API, or a websocket, or a polling loop).
-
-
-## Clock — The Body Rhythm
-
-`clock.py` (~50 lines). A schedule of named tasks with intervals. The daemon calls `tick()` every minute.
-
-```python
-schedule = {
-    "heartbeat": {"every": "1h",  "run": "core.py --heartbeat"},
-    "reflect":   {"every": "6h",  "run": "core.py --reflect"},
-}
-
-def tick():
-    now = time.time()
-    for name, task in schedule.items():
-        if due(task, now):
-            subprocess.Popen(task["run"], shell=True)
-            task["last"] = now
-```
-
-The kernel ships with two rhythms:
-- **Heartbeat** (1h) — wake the agent, let it look around, be proactive
-- **Reflect** (6h) — review friction log, plan and execute improvements
-
-The agent adds more rhythms by editing `clock.py`. Scribe, consolidator, arXiv, email, weather: all bootstrapped, not prescribed.
-
-Tasks run as subprocesses (same core.py, different entry point). The clock runs in the daemon, so rhythms fire even when the agent is idle.
-
-The agent can adapt intervals, add quiet hours, stretch rhythms during idle periods. The clock is just a Python file it can read and edit.
-
-
-## Configuration
-
-```yaml
-# config.yaml
-model: claude-sonnet-4-20250514
-api_key: ${ANTHROPIC_API_KEY}  # or read from env
-telegram_token: ${TELEGRAM_TOKEN}
-
-ollama:
-  model: mistral-small3.2
-  url: http://localhost:11434
-
-memory:
-  working: memory/working.md
-  long_term: memory/long-term.md
-  daily_dir: memory/
-```
-
-Minimal. Flat. The agent can read and modify this too.
+The agent can modify everything except daemon.py (convention, not lock).
 
 
 ## Boot Sequence
 
-1. `daemon.py` starts, begins clock loop
-2. `core.py` starts:
-   - Reads `soul.md` (who am I, what do I value)
-   - Reads `self.md` (what can I do, what's my current state)
-   - Reads `memory/*.md` (what do I remember)
-   - Discovers tools from `tools.py` + `tools/*.py`
-   - Assembles system prompt
+1. Daemon starts, begins clock loop
+2. core.py reads soul.md, self.md, memory files, discovers tools
 3. Agent waits for input (stdin, or bridge if one exists)
-4. First thing the agent sees: its identity, its self-model, its memories, its tools
-
-
-## What This Is Not
-
-- Not a framework. It's one agent's personal runtime.
-- Not general-purpose. It's built for Momo, by Momo (and Gilles).
-- Not feature-complete on day one. It grows as the agent needs it to.
-- Not a product. No users, no docs, no backwards compatibility.
-
-
-## Roadmap
-
-### Phase 1: Kernel (~430 lines)
-- [ ] `daemon.py` — supervisor with crash recovery and rollback
-- [ ] `core.py` — agent loop + LLM call + context + capture + friction logging
-- [ ] `tools.py` — read, write, edit, exec, restart
-- [ ] `clock.py` — heartbeat + reflect rhythms
-- [ ] `soul.md` — identity + drive
-- [ ] CLI input (stdin/stdout)
-
-### Phase 2: First boot
-- [ ] Run the kernel
-- [ ] Let the agent live for a few days
-- [ ] Watch what it builds during reflection cycles
-- [ ] Intervene only if it gets stuck
-
-### Phase 3: Migration
-- [ ] Agent has bootstrapped enough to replace OpenClaw for daily use
-- [ ] Switch over
+4. Clock ticks every minute, fires heartbeat/reflect when due
