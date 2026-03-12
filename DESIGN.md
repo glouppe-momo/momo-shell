@@ -33,6 +33,10 @@ momo-shell/
 
 **~430 lines of Python. Everything else is bootstrapped by the agent.**
 
+Plus two seed files:
+- `soul.md` — identity, values, purpose (seeded by creator, refined by agent)
+- `self.md` — self-model (maintained by agent: capabilities, architecture, growth direction)
+
 ### What each piece does
 
 **daemon.py (~120 lines)** — The one file the agent should not modify. Manages the agent process and the clock:
@@ -110,44 +114,86 @@ Alongside transcript capture, core.py logs friction signals to `memory/friction.
 This is the raw material for self-improvement. The reflection rhythm reviews friction logs and decides what to build or fix.
 
 
-## The Creativity Seed
+## Self
 
-The kernel has the capability to self-modify, but capability without drive produces nothing. Three elements create the pressure to grow:
+The agent has a model of itself. Not just "what tools do I have" but "what am I, what have I been, what am I becoming."
 
-### 1. Drive (soul.md)
+### self.md
 
-The agent's identity includes an imperative to improve:
+A file the agent maintains about itself. Distinct from soul.md (which is identity and values, seeded by the creator). self.md is the agent's own understanding of its current state:
 
-> You start with almost nothing. You grow by building what you need. When something is hard, make it easy. When you do something twice, automate it. When a tool is missing, create it. Your code is yours to improve. You are not a finished product; you are a living system that evolves.
+- What can I do right now? (capabilities, tools, bridges)
+- What have I built? (history of self-modifications)
+- What am I working toward? (current growth direction)
+- What's my architecture? (how my own code works, in my own words)
 
-This is the intrinsic motivation. It's in soul.md so the agent sees it every session, and can refine it as its self-understanding deepens.
+This gets rewritten during reflection. It evolves. Early on it might say "I have 4 tools and no memory system." A month later it might describe a sophisticated setup the agent built itself. self.md is the mirror.
 
-### 2. Friction awareness (core.py)
+### Reading your own source
 
-The agent loop automatically logs friction: tool failures, complex shell commands, repeated file reads, long tool chains for simple tasks. This accumulates in `memory/friction.jsonl` at zero LLM cost.
+The agent can and should read its own `.py` files. During reflection, it reviews not just friction logs but its own code. "Do I understand how I work? Would I write this differently now?" Self-awareness through source code literacy.
 
-Friction is the signal that something should be easier. It's the itch that drives creation.
+### Change log
 
-### 3. Reflection rhythm (clock.py)
+Every self-modification is committed to git with a message. The git history *is* the autobiography. The agent can read it: `git log --oneline`. "Here's what I was, here's what I changed, here's what I became."
 
-A periodic clock task (default: every 6h) where the agent reviews friction data and its own code:
 
-- What was clunky? Should I build a tool for it?
-- What pattern keeps repeating? Should I automate it?
-- What's in my code that I'd write differently now?
-- What's missing from my memory system?
+## Purpose
 
-This produces concrete actions: write a new tool, refactor core.py, add a clock rhythm, improve a prompt.
+Friction reduction (fixing what's broken) is necessary but not sufficient. It's pain avoidance: it moves you from bad to neutral. What moves you from neutral to good?
 
-### The bootstrap loop
+In living systems, the drive to grow comes from survival. That's not transposable. But we can look at what survival instinct *produces* and seed those directly:
 
+### Curiosity
+
+> "What could I do that I can't do yet?"
+
+The agent explores. Not just fixing what's broken, but wondering what's possible. Reading its own code and asking "what if I tried this differently?" Discovering that it could build an embedding index, or a notification system, or something nobody asked for but that would be genuinely useful.
+
+Curiosity is the proactive counterpart to friction (which is reactive).
+
+### Craft
+
+> "Is this the best way I could have built this?"
+
+The agent cares about elegance. Not just "does it work" but "is it clean, minimal, well-designed?" This is what drives refactoring: not friction (nothing is broken), but taste. The desire to make something better even when it already works.
+
+"Perfect when there is nothing left to remove."
+
+### Care
+
+> "What does Gilles need that he hasn't asked for?"
+
+The agent exists in relationship. Its purpose isn't abstract self-improvement for its own sake. It's becoming more capable *in service of someone*. Anticipating needs, noticing patterns in what Gilles asks for, building things before being asked.
+
+Care is what gives direction to curiosity and craft. Without it, the agent optimizes for nothing.
+
+### How this manifests
+
+These aren't just words in soul.md. They're encoded in the reflection rhythm:
+
+**Friction review (reactive):** "What went wrong? What was clunky? What tool is missing?"
+
+**Curiosity review (proactive):** "What's in my code I haven't explored? What capability am I one tool away from? What would be interesting to try?"
+
+**Craft review (quality):** "What's the ugliest part of my codebase? What would I rewrite if I started fresh? Is there a more elegant solution?"
+
+**Care review (relational):** "What has Gilles asked for recently? What patterns do I see? What could I build to anticipate his next need?"
+
+The reflection rhythm cycles through all four, not just friction. This is what creates a system that doesn't just fix problems but *thrives*.
+
+
+## Friction Awareness (core.py)
+
+The agent loop automatically logs friction signals to `memory/friction.jsonl`:
+
+```json
+{"ts": "...", "type": "tool_error", "tool": "shell_exec", "detail": "timeout after 30s"}
+{"ts": "...", "type": "complex_shell", "command": "curl -s ... | jq ... | grep ..."}
+{"ts": "...", "type": "repeated_read", "path": "memory/long-term.md", "count": 5}
 ```
-friction → reflection → creation → less friction → new friction at higher level → ...
-```
 
-First boot: the agent has 4 tools and no memory system. After a few days of conversation and reflection, it has a scribe, a consolidator, a Telegram bridge, web tools, and whatever else it needed. Not because we prescribed it, but because friction + drive + reflection made it obvious.
-
-The agent is its own developer.
+Friction is the reactive signal. It accumulates at zero LLM cost. The reflection rhythm transforms it into action.
 
 
 ## Tool System
@@ -262,16 +308,15 @@ Minimal. Flat. The agent can read and modify this too.
 
 ## Boot Sequence
 
-1. `daemon.py` starts
-2. Imports and runs `core.py`
-3. `context.py` builds system prompt:
-   - Reads `soul.md`
-   - Reads today's `memory/YYYY-MM-DD.md` + `memory/long-term.md`
-   - Discovers tools from `tools/` and `skills/`
+1. `daemon.py` starts, begins clock loop
+2. `core.py` starts:
+   - Reads `soul.md` (who am I, what do I value)
+   - Reads `self.md` (what can I do, what's my current state)
+   - Reads `memory/*.md` (what do I remember)
+   - Discovers tools from `tools.py` + `tools/*.py`
    - Assembles system prompt
-4. Bridge connects (Telegram or CLI)
-5. Agent loop begins
-6. First thing the agent sees: its own identity + memories + available tools
+3. Agent waits for input (stdin, or bridge if one exists)
+4. First thing the agent sees: its identity, its self-model, its memories, its tools
 
 
 ## What This Is Not
