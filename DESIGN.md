@@ -19,7 +19,8 @@ Everything earns its place. Nothing is sacred except the supervisor.
 
 ```
 momo-shell/
-  daemon.py       # supervisor: start agent + background processes, crash recovery
+  daemon.py       # supervisor: agent process + clock loop, crash recovery
+  clock.py        # body rhythm: schedule periodic tasks (scribe, heartbeat, etc.)
   core.py         # agent loop and tool dispatch
   llm.py          # LLM API backends (Claude, Ollama)
   context.py      # build system prompt from personality + memory files
@@ -41,10 +42,10 @@ momo-shell/
 
 ### What each piece does
 
-**daemon.py (~100 lines)** — The one file the agent should not modify (or modify with extreme care). Manages the agent and its background processes:
+**daemon.py (~120 lines)** — The one file the agent should not modify (or modify with extreme care). Manages the agent process and the body clock:
 1. `git stash` or snapshot current state
-2. Start the agent process (core.py)
-3. Start background memory processes (scribe timer, consolidator timer)
+2. Start the agent process (core.py + bridge)
+3. Run the clock loop (tick every 60s, fire due tasks)
 4. If agent crashes within 10s, roll back and restart from last known good
 5. If agent signals restart (e.g., after self-edit), go to 1
 6. Watchdog: if agent is unresponsive for N minutes, restart
@@ -135,12 +136,12 @@ Simple and improvable:
 
 The key insight: the agent improves its own memory system. The scribe produces bad notes? Edit `scribe.py`. Grep is too noisy? Write a `skills/memory_search.py` with embeddings. The consolidator misses patterns? Rewrite its prompt. The subconscious evolves.
 
-### Daemon integration
+### Clock integration
 
-The daemon manages the background processes:
-- Capture runs in-process (just a function call in the message pipeline)
-- Scribe runs as a periodic subprocess (every 30 min, or triggered by session end)
-- Consolidator runs as a daily subprocess (or via system cron)
+The subconscious processes run on the body clock (see **Clock** section):
+- Capture runs in-process (just a function call in the message pipeline, not clocked)
+- Scribe is a clock rhythm (default: every 30 min)
+- Consolidator is a clock rhythm (default: daily at 3 AM)
 
 All three are restartable, crash-safe, and independent of each other.
 
@@ -266,18 +267,92 @@ Uses `python-telegram-bot` or raw Bot API via `requests`. Polls for updates, dis
 `input()` loop. For development and debugging. Already exists in Miniature.
 
 
-## Cron / Periodic Tasks
+## Clock — The Body Rhythm
 
-No built-in cron system. Use system cron or systemd timers.
+The agent has an internal clock (`clock.py`, ~80 lines) that coordinates all periodic processes. Think of it as a biological rhythm: heartbeat, breathing, sleep cycles. Not a dumb cron table, but a living schedule the agent can introspect and modify.
 
-A cron job simply calls the agent with a message:
+### How it works
 
-```bash
-# In crontab
-*/30 * * * * echo "heartbeat: check memory, anything to do?" | momo-shell --stdin
+The clock is a simple event loop running inside the daemon. It maintains a schedule of named tasks with intervals:
+
+```python
+# clock.py
+
+schedule = {
+    "scribe":      {"every": "30m",  "fn": run_scribe,      "last": None},
+    "consolidate": {"every": "24h",  "fn": run_consolidator, "last": None},
+    "heartbeat":   {"every": "1h",   "fn": run_heartbeat,    "last": None},
+}
+
+def tick():
+    """Called every minute by the daemon. Runs anything that's due."""
+    now = time.time()
+    for name, task in schedule.items():
+        if task["last"] is None or now - task["last"] >= parse_interval(task["every"]):
+            task["fn"]()
+            task["last"] = now
 ```
 
-Or the agent can install its own cron jobs via `shell_exec("crontab ...")`. Self-improving, again.
+That's the core. ~30 lines for the scheduler itself.
+
+### What runs on the clock
+
+| Rhythm | Default interval | What it does |
+|--------|-----------------|--------------|
+| **Scribe** | 30 min | Distill transcript into daily notes |
+| **Consolidator** | 24h (3 AM) | Promote daily notes to long-term memory |
+| **Heartbeat** | 1h | Agent wakes up, checks if anything needs attention |
+
+The heartbeat is the interesting one. It's a scheduled LLM call where the agent gets to look around: check for pending tasks, review recent memory, decide if it needs to reach out. Proactive behavior without constant polling.
+
+### Adaptive rhythms
+
+The schedule is a file the agent can read and modify. Examples of self-adaptation:
+
+- **Active conversation:** Scribe interval drops to 10 min (more to capture)
+- **Idle hours:** Heartbeat stretches to 2h, scribe pauses entirely
+- **Night (23:00-07:00):** Everything sleeps except capture. Consolidator runs once at 3 AM.
+- **After self-edit:** Immediate scribe run (capture what just changed and why)
+
+The agent modifies rhythms by editing `clock.py` or a `clock.yaml` config:
+
+```yaml
+# clock.yaml (agent-editable)
+scribe:
+  every: 30m
+  quiet_hours: "23:00-07:00"  # pause during sleep
+consolidate:
+  every: 24h
+  at: "03:00"                 # prefer a specific time
+heartbeat:
+  every: 1h
+  idle_stretch: 2h            # stretch when no conversation
+  quiet_hours: "23:00-07:00"
+```
+
+### Custom rhythms
+
+The agent can add new periodic tasks by adding entries to the schedule. Examples it might create over time:
+
+- **arXiv check** — daily at 7:30 AM
+- **Email poll** — every 2h during business hours
+- **Weather** — twice daily
+- **Git backup** — every 6h, push to remote
+
+Adding a rhythm = writing a function + adding a schedule entry. Same self-improvement pattern as tools.
+
+### Daemon integration
+
+The daemon runs the clock loop:
+
+```python
+# In daemon.py
+while True:
+    clock.tick()     # check if anything is due
+    time.sleep(60)   # resolution: 1 minute
+```
+
+The clock runs in the daemon process, not the agent process. This means scheduled tasks (scribe, consolidator) keep running even if the agent is idle or restarting. The heartbeat is the exception: it starts a fresh agent interaction.
 
 
 ## Configuration
@@ -327,24 +402,25 @@ Minimal. Flat. The agent can read and modify this too.
 
 ### Phase 1: Core
 - [ ] `daemon.py` — supervisor with crash recovery and rollback
+- [ ] `clock.py` — body rhythm scheduler
 - [ ] `core.py` — agent loop with tool dispatch
 - [ ] `llm.py` — Claude API backend
 - [ ] `context.py` — system prompt builder
 - [ ] `tools/builtins.py` — read, write, edit, exec
 - [ ] `bridge/cli.py` — terminal interface
-- [ ] Basic memory (working.md + long-term.md)
+- [ ] Memory: capture (in-process) + scribe (on clock) + file-based storage
 
 ### Phase 2: Connected
 - [ ] `bridge/telegram.py` — Telegram messaging
 - [ ] `tools/web.py` — web_fetch
-- [ ] Cron via system crontab
+- [ ] Heartbeat rhythm on the clock
 - [ ] Agent self-modification tested and working
 
 ### Phase 3: Living
 - [ ] Agent improves its own memory retrieval
 - [ ] Agent creates its first skill
-- [ ] Daily note automation
-- [ ] Memory consolidation (agent-driven)
+- [ ] Agent adapts its own clock rhythms
+- [ ] Consolidator running, long-term memory growing
 
 ### Phase 4: Migration
 - [ ] Feature parity with what I actually use from OpenClaw
