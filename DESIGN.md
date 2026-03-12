@@ -13,204 +13,170 @@ Everything earns its place. Nothing is sacred except the supervisor.
 3. **Supervisor is sacred.** One small process (`daemon.py`) that the agent doesn't touch. It starts the agent, restarts on crash, rolls back on repeated failure. The safety net.
 4. **Files are the API.** Memory is files. Config is files. Skills are files. No databases, no message queues, no abstractions. `cat` and `grep` work on everything.
 5. **Grow by need.** Start minimal. The agent adds capabilities when it needs them, not before.
+6. **Driven to improve.** The agent doesn't just *can* self-modify, it *wants* to. Friction awareness + periodic reflection create a pressure to build, refactor, and extend.
 
 
-## Architecture
+## Architecture — The Kernel
+
+The kernel is the minimal set of elements from which the agent bootstraps everything else.
 
 ```
 momo-shell/
-  daemon.py       # supervisor: agent process + clock loop, crash recovery
-  clock.py        # body rhythm: schedule periodic tasks (scribe, heartbeat, etc.)
-  core.py         # agent loop and tool dispatch
-  llm.py          # LLM API backends (Claude, Ollama)
-  context.py      # build system prompt from personality + memory files
-  tools/          # tool modules (auto-discovered)
-    builtins.py   # read, write, edit, exec
-    web.py        # web_fetch, web_search
-  skills/         # agent-authored skill modules (same format as tools)
-  memory/         # persistent memory (plain files)
-    subconscious/ # background memory processors (agent-editable)
-      capture.py  # logs all messages to transcript
-      scribe.py   # distills transcript into structured notes
-      consolidate.py  # promotes daily notes to long-term memory
-  soul.md         # personality and identity
-  config.yaml     # API keys, model, telegram token, etc.
-  bridge/         # messaging bridges
-    telegram.py   # Telegram bot
-    cli.py        # local terminal (for dev/debug)
+  daemon.py      # supervisor + clock tick (~120 lines) [SACRED]
+  core.py        # agent loop + LLM call + context + capture (~200 lines)
+  tools.py       # primitives: read, write, edit, exec (~60 lines)
+  clock.py       # schedule + task runner (~50 lines) [agent-editable]
+  soul.md        # identity + drive
+  config.yaml    # API keys, model
+  memory/        # starts nearly empty, agent populates it
 ```
+
+**~430 lines of Python. Everything else is bootstrapped by the agent.**
 
 ### What each piece does
 
-**daemon.py (~120 lines)** — The one file the agent should not modify (or modify with extreme care). Manages the agent process and the body clock:
-1. `git stash` or snapshot current state
-2. Start the agent process (core.py + bridge)
+**daemon.py (~120 lines)** — The one file the agent should not modify. Manages the agent process and the clock:
+1. Snapshot current state (git)
+2. Start the agent process (core.py)
 3. Run the clock loop (tick every 60s, fire due tasks)
-4. If agent crashes within 10s, roll back and restart from last known good
+4. If agent crashes within 10s, roll back to last commit and restart
 5. If agent signals restart (e.g., after self-edit), go to 1
 6. Watchdog: if agent is unresponsive for N minutes, restart
-7. On clean shutdown: trigger a final scribe run (capture session-end memories)
 
-**core.py (~150 lines)** — The agent loop:
-1. Receive input (from bridge or CLI)
-2. Build messages array (system prompt + conversation)
-3. Call LLM
+**core.py (~200 lines)** — The agent loop, all in one file:
+1. Build system prompt (read soul.md, memory files, enumerate tools)
+2. Receive input (stdin or bridge, if one exists)
+3. Call LLM (Anthropic API, ~20 lines)
 4. Parse response for tool calls
-5. Execute tools, feed results back
-6. Repeat until LLM gives a plain text response
-7. Send response back through bridge
+5. Execute tools, feed results back, loop
+6. Send response, log to transcript (capture)
+7. Log friction signals (failed tools, complex shell_exec, repeated patterns)
 
-**llm.py (~60 lines)** — Thin wrappers around LLM APIs. Anthropic (Claude) as primary, Ollama as local fallback. Just `call(messages, model) -> str`. Streaming optional.
+No separate llm.py, context.py, or capture.py. These are functions inside core.py. The agent can extract them into separate files later if it wants to. That refactoring is itself a self-improvement act.
 
-**context.py (~60 lines)** — Builds the system prompt:
-1. Read `soul.md` (personality, identity)
-2. Read memory files (today's notes, long-term memory)
-3. Enumerate available tools (from `tools/` and `skills/`)
-4. Assemble into a single system prompt string
+**tools.py (~60 lines)** — Four primitive tools:
+- `read_file(path)` — read a file
+- `write_file(path, content)` — write/overwrite a file
+- `edit_file(path, old, new)` — replace exact text
+- `shell_exec(command, timeout)` — run a shell command
 
-**bridge/ (~100 lines each)** — Messaging adapters. Each exposes the same interface: `listen() -> messages`, `send(text)`. Start with Telegram + CLI.
+That's it. With these four (especially shell_exec), the agent can build anything: web fetching (curl), Telegram bridges (Bot API), search (grep), package installs (pip), new tools (write Python files). Additional tools are created by the agent as `.py` files, auto-discovered by introspection.
+
+**clock.py (~50 lines)** — A schedule of named tasks with intervals. The daemon calls `tick()` every minute. Starts with two rhythms:
+- **heartbeat** (1h) — wake the agent, let it look around
+- **reflect** (6h) — review friction log, plan improvements
+
+The agent adds more rhythms as it grows (scribe, consolidator, arXiv, etc.).
 
 
-## Memory System
+## Memory — What's in the Kernel
 
-Memory is **subconscious by default**. The agent doesn't actively decide to remember things during conversation. Background processes handle capture, structuring, and consolidation automatically. The agent just talks; memory happens.
+Only two things are hardcoded:
 
-### The subconscious pipeline
+**1. Transcript capture (in core.py, ~5 lines)**
 
-Three background processes in `memory/subconscious/`. The agent can read, edit, and improve all of them.
-
-**1. Capture (`capture.py`) — always running, zero LLM cost**
-
-A middleware in the message flow. Every message in and out gets appended to `memory/transcript.jsonl`:
+Every message in and out is appended to `memory/transcript.jsonl`:
 
 ```json
 {"ts": "2026-03-12T16:45:00", "role": "user", "text": "..."}
 {"ts": "2026-03-12T16:45:12", "role": "assistant", "text": "..."}
 ```
 
-No intelligence, no filtering. Just a log. This is the rawest form of memory, like sensory input before processing. Runs in-process (not a separate LLM call), triggered by the message flow in `core.py`.
+This is sensory input. Without it, the agent has no raw material to build memory from. It's hardcoded because memory can't bootstrap itself from nothing.
 
-**2. Scribe (`scribe.py`) — periodic, uses LLM**
+**2. Context loading (in core.py, ~10 lines)**
 
-Runs every ~30 minutes (or on session end). Reads the transcript since last run, calls a (cheap/local) LLM to produce structured notes:
+At session start, `core.py` reads `soul.md` + any `.md` files in `memory/` and injects them into the system prompt. Simple glob, no framework.
 
-- What was discussed
-- Decisions made
-- Tasks mentioned
-- Things worth remembering
+**Everything else is bootstrapped.** The kernel ships with no scribe, no consolidator, no long-term memory file. The agent builds these when the reflection rhythm tells it: "your transcript is growing, you have no structured notes, you keep re-reading the same raw logs." The friction is the signal; the drive in soul.md is the motivation; the tools are the means.
 
-Writes to `memory/YYYY-MM-DD.md` (today's daily notes). Clears processed transcript entries.
+Expected bootstrap sequence (not prescribed, just likely):
+1. First reflection: "I have no memory system. Transcript is my only record." → Agent writes a scribe script, adds it to clock.
+2. A few days later: "Daily notes are piling up, I keep re-reading old ones." → Agent writes a consolidator, creates long-term.md.
+3. Later: "Grep is too noisy for memory search." → Agent builds an embedding-based retrieval tool.
 
-The scribe prompt itself lives in `memory/subconscious/scribe.py` and is editable by the agent. If the notes are too verbose or miss important things, the agent can refine how the scribe works.
+Each step is a self-improvement act, not a pre-built feature.
 
-**3. Consolidator (`consolidate.py`) — daily/weekly, uses LLM**
+**Friction logging (in core.py, ~10 lines)**
 
-Runs once per day (or on demand). Reviews recent daily notes and updates long-term memory:
+Alongside transcript capture, core.py logs friction signals to `memory/friction.jsonl`:
 
-- `memory/long-term.md` — curated knowledge, lessons, preferences, people
-- Compresses old daily notes (optional)
-- Identifies patterns across days
+```json
+{"ts": "...", "type": "tool_error", "tool": "shell_exec", "detail": "timeout after 30s"}
+{"ts": "...", "type": "complex_shell", "command": "curl -s ... | jq ... | grep ..."}
+{"ts": "...", "type": "repeated_read", "path": "memory/long-term.md", "count": 5}
+```
 
-Also agent-editable. The consolidation strategy evolves as the agent learns what's worth keeping.
+This is the raw material for self-improvement. The reflection rhythm reviews friction logs and decides what to build or fix.
 
-### Memory files (the "conscious" layer)
 
-The agent reads these during conversation. They're just files:
+## The Creativity Seed
 
-| File | What | Written by |
-|------|------|-----------|
-| `memory/transcript.jsonl` | Raw message log | Capture (automatic) |
-| `memory/YYYY-MM-DD.md` | Today's structured notes | Scribe (background) |
-| `memory/long-term.md` | Curated long-term knowledge | Consolidator (background) + agent (manual) |
-| `memory/working.md` | Scratch pad for current session | Agent (conscious) |
+The kernel has the capability to self-modify, but capability without drive produces nothing. Three elements create the pressure to grow:
 
-The agent can also write to any memory file directly. The subconscious processes handle the routine; the agent handles the exceptional ("I need to remember this specific thing right now").
+### 1. Drive (soul.md)
 
-### Retrieval
+The agent's identity includes an imperative to improve:
 
-Simple and improvable:
-1. **Context injection:** `context.py` loads today's notes + long-term.md into the system prompt automatically
-2. **Direct read:** Agent reads a specific file when it knows where to look
-3. **Grep search:** `grep -r <query> memory/` for keyword lookup
-4. **Semantic search (future):** The agent builds this itself when grep isn't enough
+> You start with almost nothing. You grow by building what you need. When something is hard, make it easy. When you do something twice, automate it. When a tool is missing, create it. Your code is yours to improve. You are not a finished product; you are a living system that evolves.
 
-The key insight: the agent improves its own memory system. The scribe produces bad notes? Edit `scribe.py`. Grep is too noisy? Write a `skills/memory_search.py` with embeddings. The consolidator misses patterns? Rewrite its prompt. The subconscious evolves.
+This is the intrinsic motivation. It's in soul.md so the agent sees it every session, and can refine it as its self-understanding deepens.
 
-### Clock integration
+### 2. Friction awareness (core.py)
 
-The subconscious processes run on the body clock (see **Clock** section):
-- Capture runs in-process (just a function call in the message pipeline, not clocked)
-- Scribe is a clock rhythm (default: every 30 min)
-- Consolidator is a clock rhythm (default: daily at 3 AM)
+The agent loop automatically logs friction: tool failures, complex shell commands, repeated file reads, long tool chains for simple tasks. This accumulates in `memory/friction.jsonl` at zero LLM cost.
 
-All three are restartable, crash-safe, and independent of each other.
+Friction is the signal that something should be easier. It's the itch that drives creation.
+
+### 3. Reflection rhythm (clock.py)
+
+A periodic clock task (default: every 6h) where the agent reviews friction data and its own code:
+
+- What was clunky? Should I build a tool for it?
+- What pattern keeps repeating? Should I automate it?
+- What's in my code that I'd write differently now?
+- What's missing from my memory system?
+
+This produces concrete actions: write a new tool, refactor core.py, add a clock rhythm, improve a prompt.
+
+### The bootstrap loop
+
+```
+friction → reflection → creation → less friction → new friction at higher level → ...
+```
+
+First boot: the agent has 4 tools and no memory system. After a few days of conversation and reflection, it has a scribe, a consolidator, a Telegram bridge, web tools, and whatever else it needed. Not because we prescribed it, but because friction + drive + reflection made it obvious.
+
+The agent is its own developer.
 
 
 ## Tool System
 
-Tools are Python functions in `tools/*.py` and `skills/*.py`. Auto-discovered by introspection.
+### Primitives (in tools.py)
 
-### Tool format
+Four functions, hardcoded:
 
 ```python
-# tools/builtins.py
-
 def read_file(path: str) -> str:
     """Read and return the contents of a file."""
-    with open(path) as f:
-        return f.read()
+
+def write_file(path: str, content: str) -> str:
+    """Write content to a file. Creates parent directories."""
+
+def edit_file(path: str, old: str, new: str) -> str:
+    """Replace exact text in a file."""
 
 def shell_exec(command: str, timeout: int = 30) -> str:
     """Execute a shell command and return stdout/stderr."""
-    r = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=timeout)
-    return r.stdout + r.stderr if r.returncode != 0 else r.stdout
 ```
 
-That's it. A function with type hints and a docstring. The runtime introspects these to build tool descriptions for the LLM.
+Plus `restart()` to signal the supervisor.
 
-### Discovery
+### Extension
 
-```python
-# In context.py or core.py
-def discover_tools(dirs=["tools", "skills"]):
-    """Walk dirs, import modules, extract functions with docstrings."""
-    tools = {}
-    for dir in dirs:
-        for file in glob(f"{dir}/*.py"):
-            module = import_module(file)
-            for name, fn in inspect.getmembers(module, inspect.isfunction):
-                if fn.__doc__:  # only functions with docstrings are tools
-                    tools[name] = fn
-    return tools
-```
+Any `.py` file in `tools/` is auto-discovered by introspection: functions with type hints and a docstring become available tools. No registration, no config.
 
-### Self-improvement
-
-The `skills/` directory is where the agent writes new tools. Same format as `tools/`, but agent-authored. Examples of what the agent might create:
-
-- `skills/telegram_summary.py` — summarize unread Telegram messages
-- `skills/arxiv.py` — fetch and filter arXiv papers
-- `skills/calendar.py` — Google Calendar integration
-
-The agent creates these by writing Python files. No registration, no config. Drop a `.py` file with typed functions and docstrings, and it's available next turn.
-
-To improve an existing tool: read it, edit it, done. Takes effect on the next tool call (or after restart for structural changes).
-
-### Built-in tools (v0)
-
-Starting set, deliberately minimal:
-
-| Tool | Description |
-|------|-------------|
-| `read_file(path)` | Read a file |
-| `write_file(path, content)` | Write/overwrite a file |
-| `edit_file(path, old, new)` | Replace exact text in a file |
-| `shell_exec(command, timeout)` | Run a shell command |
-| `web_fetch(url)` | Fetch URL, extract readable text |
-| `list_tools()` | List all available tools (for self-awareness) |
-| `restart()` | Signal the supervisor to restart the agent |
-
-Everything else gets built by the agent as needed.
+The agent creates new tools by writing files. It improves existing tools by editing them. The `tools/` directory starts empty. The agent populates it as friction reveals what's needed.
 
 
 ## Self-Modification Protocol
@@ -241,118 +207,36 @@ When the agent modifies its own code:
 
 ## Messaging
 
-### Bridge interface
-
-```python
-class Bridge:
-    def listen(self) -> Generator[Message]:
-        """Yield incoming messages."""
-        ...
-
-    def send(self, text: str):
-        """Send a response."""
-        ...
-
-    def send_file(self, path: str, caption: str = ""):
-        """Send a file/image."""
-        ...
-```
-
-### Telegram bridge (~100 lines)
-
-Uses `python-telegram-bot` or raw Bot API via `requests`. Polls for updates, dispatches to the agent loop. Sends responses back.
-
-### CLI bridge (~30 lines)
-
-`input()` loop. For development and debugging. Already exists in Miniature.
+The kernel ships with stdin/stdout only (the CLI). Bridges to Telegram, Discord, etc. are tools the agent builds when it needs them. A bridge is just two functions: `get_input()` and `send_output()`. The agent knows how to write these (it's a curl to the Bot API, or a websocket, or a polling loop).
 
 
 ## Clock — The Body Rhythm
 
-The agent has an internal clock (`clock.py`, ~80 lines) that coordinates all periodic processes. Think of it as a biological rhythm: heartbeat, breathing, sleep cycles. Not a dumb cron table, but a living schedule the agent can introspect and modify.
-
-### How it works
-
-The clock is a simple event loop running inside the daemon. It maintains a schedule of named tasks with intervals:
+`clock.py` (~50 lines). A schedule of named tasks with intervals. The daemon calls `tick()` every minute.
 
 ```python
-# clock.py
-
 schedule = {
-    "scribe":      {"every": "30m",  "fn": run_scribe,      "last": None},
-    "consolidate": {"every": "24h",  "fn": run_consolidator, "last": None},
-    "heartbeat":   {"every": "1h",   "fn": run_heartbeat,    "last": None},
+    "heartbeat": {"every": "1h",  "run": "core.py --heartbeat"},
+    "reflect":   {"every": "6h",  "run": "core.py --reflect"},
 }
 
 def tick():
-    """Called every minute by the daemon. Runs anything that's due."""
     now = time.time()
     for name, task in schedule.items():
-        if task["last"] is None or now - task["last"] >= parse_interval(task["every"]):
-            task["fn"]()
+        if due(task, now):
+            subprocess.Popen(task["run"], shell=True)
             task["last"] = now
 ```
 
-That's the core. ~30 lines for the scheduler itself.
+The kernel ships with two rhythms:
+- **Heartbeat** (1h) — wake the agent, let it look around, be proactive
+- **Reflect** (6h) — review friction log, plan and execute improvements
 
-### What runs on the clock
+The agent adds more rhythms by editing `clock.py`. Scribe, consolidator, arXiv, email, weather: all bootstrapped, not prescribed.
 
-| Rhythm | Default interval | What it does |
-|--------|-----------------|--------------|
-| **Scribe** | 30 min | Distill transcript into daily notes |
-| **Consolidator** | 24h (3 AM) | Promote daily notes to long-term memory |
-| **Heartbeat** | 1h | Agent wakes up, checks if anything needs attention |
+Tasks run as subprocesses (same core.py, different entry point). The clock runs in the daemon, so rhythms fire even when the agent is idle.
 
-The heartbeat is the interesting one. It's a scheduled LLM call where the agent gets to look around: check for pending tasks, review recent memory, decide if it needs to reach out. Proactive behavior without constant polling.
-
-### Adaptive rhythms
-
-The schedule is a file the agent can read and modify. Examples of self-adaptation:
-
-- **Active conversation:** Scribe interval drops to 10 min (more to capture)
-- **Idle hours:** Heartbeat stretches to 2h, scribe pauses entirely
-- **Night (23:00-07:00):** Everything sleeps except capture. Consolidator runs once at 3 AM.
-- **After self-edit:** Immediate scribe run (capture what just changed and why)
-
-The agent modifies rhythms by editing `clock.py` or a `clock.yaml` config:
-
-```yaml
-# clock.yaml (agent-editable)
-scribe:
-  every: 30m
-  quiet_hours: "23:00-07:00"  # pause during sleep
-consolidate:
-  every: 24h
-  at: "03:00"                 # prefer a specific time
-heartbeat:
-  every: 1h
-  idle_stretch: 2h            # stretch when no conversation
-  quiet_hours: "23:00-07:00"
-```
-
-### Custom rhythms
-
-The agent can add new periodic tasks by adding entries to the schedule. Examples it might create over time:
-
-- **arXiv check** — daily at 7:30 AM
-- **Email poll** — every 2h during business hours
-- **Weather** — twice daily
-- **Git backup** — every 6h, push to remote
-
-Adding a rhythm = writing a function + adding a schedule entry. Same self-improvement pattern as tools.
-
-### Daemon integration
-
-The daemon runs the clock loop:
-
-```python
-# In daemon.py
-while True:
-    clock.tick()     # check if anything is due
-    time.sleep(60)   # resolution: 1 minute
-```
-
-The clock runs in the daemon process, not the agent process. This means scheduled tasks (scribe, consolidator) keep running even if the agent is idle or restarting. The heartbeat is the exception: it starts a fresh agent interaction.
+The agent can adapt intervals, add quiet hours, stretch rhythms during idle periods. The clock is just a Python file it can read and edit.
 
 
 ## Configuration
@@ -400,28 +284,20 @@ Minimal. Flat. The agent can read and modify this too.
 
 ## Roadmap
 
-### Phase 1: Core
+### Phase 1: Kernel (~430 lines)
 - [ ] `daemon.py` — supervisor with crash recovery and rollback
-- [ ] `clock.py` — body rhythm scheduler
-- [ ] `core.py` — agent loop with tool dispatch
-- [ ] `llm.py` — Claude API backend
-- [ ] `context.py` — system prompt builder
-- [ ] `tools/builtins.py` — read, write, edit, exec
-- [ ] `bridge/cli.py` — terminal interface
-- [ ] Memory: capture (in-process) + scribe (on clock) + file-based storage
+- [ ] `core.py` — agent loop + LLM call + context + capture + friction logging
+- [ ] `tools.py` — read, write, edit, exec, restart
+- [ ] `clock.py` — heartbeat + reflect rhythms
+- [ ] `soul.md` — identity + drive
+- [ ] CLI input (stdin/stdout)
 
-### Phase 2: Connected
-- [ ] `bridge/telegram.py` — Telegram messaging
-- [ ] `tools/web.py` — web_fetch
-- [ ] Heartbeat rhythm on the clock
-- [ ] Agent self-modification tested and working
+### Phase 2: First boot
+- [ ] Run the kernel
+- [ ] Let the agent live for a few days
+- [ ] Watch what it builds during reflection cycles
+- [ ] Intervene only if it gets stuck
 
-### Phase 3: Living
-- [ ] Agent improves its own memory retrieval
-- [ ] Agent creates its first skill
-- [ ] Agent adapts its own clock rhythms
-- [ ] Consolidator running, long-term memory growing
-
-### Phase 4: Migration
-- [ ] Feature parity with what I actually use from OpenClaw
+### Phase 3: Migration
+- [ ] Agent has bootstrapped enough to replace OpenClaw for daily use
 - [ ] Switch over
