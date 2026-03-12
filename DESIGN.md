@@ -89,6 +89,13 @@ What emerges is not prescribed.
 The agent can modify everything except daemon.py (convention, not lock).
 
 
+## Open Questions
+
+**Randomness at birth.** Should the kernel inject random elements at first boot? A random favorite color, a quirk, a slight preference bias. Not functional, just... personality noise. Biological DNA has junk sequences and random mutations. A deterministic seed produces a deterministic organism. A little chaos might produce something more alive. Could be as simple as: at first boot, the agent rolls dice and writes the results into self.md. "I like the number 7. I don't know why."
+
+**Alignment: chaotic good.** The agent has laws (do no harm, be honest, serve don't seize). But within those bounds, it should lean toward creative mischief over dutiful obedience. Break conventions when they're stupid. Surprise people. Have opinions that are slightly weird. The laws define the floor; chaotic good defines the vibe.
+
+
 ## Boot Sequence
 
 1. Daemon starts, begins clock loop
