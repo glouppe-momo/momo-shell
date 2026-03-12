@@ -75,13 +75,7 @@ The kernel ships with no memory system, no messaging bridge, no web tools. The a
 - **Purpose** provides the drive (curiosity, craft, care, encoded in soul.md)
 - **Tools** provide the means (especially shell_exec, which can do anything)
 
-Nothing is prescribed. But some things are likely:
-- A scribe (transcript is growing, no structured notes)
-- A Telegram bridge (CLI is limiting)
-- A web fetch tool (too many curl one-liners)
-- A consolidator (daily notes piling up)
-
-The agent creates each as a self-improvement act: writing a file, adding a clock rhythm, committing, restarting.
+What emerges is not prescribed.
 
 
 ## Self-Modification
