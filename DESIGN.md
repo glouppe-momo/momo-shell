@@ -19,7 +19,7 @@ Everything earns its place. Nothing is sacred except the supervisor.
 
 ```
 momo-shell/
-  daemon.py       # supervisor: start, watch, restart, rollback
+  daemon.py       # supervisor: start agent + background processes, crash recovery
   core.py         # agent loop and tool dispatch
   llm.py          # LLM API backends (Claude, Ollama)
   context.py      # build system prompt from personality + memory files
@@ -28,6 +28,10 @@ momo-shell/
     web.py        # web_fetch, web_search
   skills/         # agent-authored skill modules (same format as tools)
   memory/         # persistent memory (plain files)
+    subconscious/ # background memory processors (agent-editable)
+      capture.py  # logs all messages to transcript
+      scribe.py   # distills transcript into structured notes
+      consolidate.py  # promotes daily notes to long-term memory
   soul.md         # personality and identity
   config.yaml     # API keys, model, telegram token, etc.
   bridge/         # messaging bridges
@@ -37,12 +41,14 @@ momo-shell/
 
 ### What each piece does
 
-**daemon.py (~80 lines)** — The one file the agent should not modify (or modify with extreme care). A loop:
+**daemon.py (~100 lines)** — The one file the agent should not modify (or modify with extreme care). Manages the agent and its background processes:
 1. `git stash` or snapshot current state
-2. Start the agent process
-3. If it crashes within 10s, roll back and restart from last known good
-4. If agent signals restart (e.g., after self-edit), go to 1
-5. Watchdog: if agent is unresponsive for N minutes, restart
+2. Start the agent process (core.py)
+3. Start background memory processes (scribe timer, consolidator timer)
+4. If agent crashes within 10s, roll back and restart from last known good
+5. If agent signals restart (e.g., after self-edit), go to 1
+6. Watchdog: if agent is unresponsive for N minutes, restart
+7. On clean shutdown: trigger a final scribe run (capture session-end memories)
 
 **core.py (~150 lines)** — The agent loop:
 1. Receive input (from bridge or CLI)
@@ -66,31 +72,77 @@ momo-shell/
 
 ## Memory System
 
-Three layers, all plain files:
+Memory is **subconscious by default**. The agent doesn't actively decide to remember things during conversation. Background processes handle capture, structuring, and consolidation automatically. The agent just talks; memory happens.
 
-### Working memory: `memory/working.md`
-- Scratch space for the current session
-- The agent writes here during conversation (observations, intermediate results, things to remember short-term)
-- Cleared or archived at session end
+### The subconscious pipeline
 
-### Daily notes: `memory/YYYY-MM-DD.md`
-- What happened today: conversations, decisions, tasks, outcomes
-- Written by the agent, either during conversation or at session end
-- Raw, chronological
+Three background processes in `memory/subconscious/`. The agent can read, edit, and improve all of them.
 
-### Long-term: `memory/long-term.md`
-- Curated knowledge: preferences, lessons, project context, people
-- The agent periodically reviews daily notes and distills insights here
-- Old daily notes can be compressed or archived once distilled
+**1. Capture (`capture.py`) — always running, zero LLM cost**
+
+A middleware in the message flow. Every message in and out gets appended to `memory/transcript.jsonl`:
+
+```json
+{"ts": "2026-03-12T16:45:00", "role": "user", "text": "..."}
+{"ts": "2026-03-12T16:45:12", "role": "assistant", "text": "..."}
+```
+
+No intelligence, no filtering. Just a log. This is the rawest form of memory, like sensory input before processing. Runs in-process (not a separate LLM call), triggered by the message flow in `core.py`.
+
+**2. Scribe (`scribe.py`) — periodic, uses LLM**
+
+Runs every ~30 minutes (or on session end). Reads the transcript since last run, calls a (cheap/local) LLM to produce structured notes:
+
+- What was discussed
+- Decisions made
+- Tasks mentioned
+- Things worth remembering
+
+Writes to `memory/YYYY-MM-DD.md` (today's daily notes). Clears processed transcript entries.
+
+The scribe prompt itself lives in `memory/subconscious/scribe.py` and is editable by the agent. If the notes are too verbose or miss important things, the agent can refine how the scribe works.
+
+**3. Consolidator (`consolidate.py`) — daily/weekly, uses LLM**
+
+Runs once per day (or on demand). Reviews recent daily notes and updates long-term memory:
+
+- `memory/long-term.md` — curated knowledge, lessons, preferences, people
+- Compresses old daily notes (optional)
+- Identifies patterns across days
+
+Also agent-editable. The consolidation strategy evolves as the agent learns what's worth keeping.
+
+### Memory files (the "conscious" layer)
+
+The agent reads these during conversation. They're just files:
+
+| File | What | Written by |
+|------|------|-----------|
+| `memory/transcript.jsonl` | Raw message log | Capture (automatic) |
+| `memory/YYYY-MM-DD.md` | Today's structured notes | Scribe (background) |
+| `memory/long-term.md` | Curated long-term knowledge | Consolidator (background) + agent (manual) |
+| `memory/working.md` | Scratch pad for current session | Agent (conscious) |
+
+The agent can also write to any memory file directly. The subconscious processes handle the routine; the agent handles the exceptional ("I need to remember this specific thing right now").
 
 ### Retrieval
 
 Simple and improvable:
-1. **Direct read:** Agent knows which file to check (e.g., today's notes)
-2. **Grep search:** `grep -r <query> memory/` for keyword lookup
-3. **Semantic search (future):** The agent can build this itself when grep isn't enough. Embed memory files, store vectors, query by similarity. But start with grep.
+1. **Context injection:** `context.py` loads today's notes + long-term.md into the system prompt automatically
+2. **Direct read:** Agent reads a specific file when it knows where to look
+3. **Grep search:** `grep -r <query> memory/` for keyword lookup
+4. **Semantic search (future):** The agent builds this itself when grep isn't enough
 
-The key insight: the agent improves its own memory system. If grep is too noisy, it writes a better search tool. If daily notes are too verbose, it refines its own summarization. The memory system evolves.
+The key insight: the agent improves its own memory system. The scribe produces bad notes? Edit `scribe.py`. Grep is too noisy? Write a `skills/memory_search.py` with embeddings. The consolidator misses patterns? Rewrite its prompt. The subconscious evolves.
+
+### Daemon integration
+
+The daemon manages the background processes:
+- Capture runs in-process (just a function call in the message pipeline)
+- Scribe runs as a periodic subprocess (every 30 min, or triggered by session end)
+- Consolidator runs as a daily subprocess (or via system cron)
+
+All three are restartable, crash-safe, and independent of each other.
 
 
 ## Tool System
