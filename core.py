@@ -28,7 +28,11 @@ def log(role, text):
     with open(TRANSCRIPT, "a") as f:
         f.write(f"[{datetime.now(timezone.utc).isoformat()}] {role}: {text}\n")
 
+def status(msg):
+    print(f"[status:{msg}]", file=sys.stderr, flush=True)
+
 def chat(config, messages, tool_defs):
+    status("thinking...")
     body = json.dumps({"model": config["model"], "messages": messages, "tools": tool_defs}).encode()
     req = urllib.request.Request(f"{config['base_url']}/chat/completions", data=body,
         headers={"Content-Type": "application/json", "Authorization": f"Bearer {config['api_key']}"})
@@ -93,6 +97,7 @@ def main():
                     fn, args = c["function"]["name"], c["function"]["arguments"]
                     if isinstance(args, str): args = json.loads(args)
                     log("tool_call", f"{fn}({json.dumps(args)})")
+                    status(f"tool: {fn}")
                     try: result = str(tools.run(fn, args))
                     except Exception as e: result = f"Error: {e}"
                     log("tool_result", f"{fn} → {result[:500]}")

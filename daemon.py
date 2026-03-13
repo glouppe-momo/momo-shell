@@ -12,7 +12,7 @@ def main():
     root = os.path.dirname(os.path.abspath(__file__))
     proc = None
     lock = threading.Lock()
-    last_exit = [None]  # track last exit code
+    last_exit = [None]
 
     def on_signal(sig, _):
         if proc and proc.poll() is None: proc.terminate()
@@ -25,23 +25,70 @@ def main():
             try: proc.stdin.write((json.dumps(event) + "\n").encode()); proc.stdin.flush()
             except (BrokenPipeError, OSError): pass
 
+    def agent_print(text):
+        """Print agent output without clobbering user's input line."""
+        with lock:
+            try:
+                import readline
+                buf = readline.get_line_buffer()
+                # Clear current line, print output, restore prompt
+                sys.stdout.write(f"\r\033[K{text}\n")
+                sys.stdout.write(f"{cli.PROMPT}{buf}")
+                sys.stdout.flush()
+            except:
+                print(text, flush=True)
+
+    def set_status(text):
+        """Show a dim status indicator, overwritten by next output."""
+        with lock:
+            try:
+                import readline
+                buf = readline.get_line_buffer()
+                sys.stdout.write(f"\r\033[K  {cli.DIM}{text}{cli.RESET}\n{cli.PROMPT}{buf}")
+                sys.stdout.flush()
+            except:
+                pass
+
     def run_agent():
         nonlocal proc
         proc = subprocess.Popen([sys.executable, "-u", os.path.join(root, "core.py")],
-                                stdin=subprocess.PIPE, cwd=root)
+                                stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE, cwd=root)
         stop = threading.Event()
+
+        def relay_stdout():
+            try:
+                for line in proc.stdout:
+                    agent_print(line.decode().rstrip())
+            except: pass
+
+        def relay_stderr():
+            try:
+                for line in proc.stderr:
+                    text = line.decode().rstrip()
+                    if text.startswith("[status:"):
+                        # Status events from core.py
+                        msg = text[8:-1] if text.endswith("]") else text[8:]
+                        set_status(msg)
+                    else:
+                        agent_print(f"{cli.DIM}{text}{cli.RESET}")
+            except: pass
+
         def ticks():
             while not stop.is_set():
                 stop.wait(TICK_INTERVAL)
                 if not stop.is_set():
                     send({"type": "tick", "time": datetime.now(timezone.utc).isoformat()})
+
+        threading.Thread(target=relay_stdout, daemon=True).start()
+        threading.Thread(target=relay_stderr, daemon=True).start()
         threading.Thread(target=ticks, daemon=True).start()
 
         if not os.path.exists(os.path.join(root, "self.md")):
-            status("first boot")
+            set_status("first boot")
             send({"type": "message", "content": "You have just been born. Read your DNA. Read your source code. Begin."})
         elif last_exit[0] == RESTART_CODE:
-            status("rebooted")
+            set_status("rebooted")
             send({"type": "message", "content": "You just rebooted. Your conversation memory is gone but your transcript and files remain. Read your transcript to remember what you were doing."})
 
         proc.wait(); stop.set()
@@ -54,11 +101,8 @@ def main():
         except Exception: return float("inf")
 
     def rollback():
-        status("crash after self-edit, rolling back")
+        set_status("crash after self-edit, rolling back")
         subprocess.run(["git", "reset", "--hard", "HEAD~1"], cwd=root, capture_output=True)
-
-    def status(msg):
-        print(f"  {cli.DIM}[daemon] {msg}{cli.RESET}", file=sys.stderr, flush=True)
 
     def input_loop():
         while True:
@@ -69,6 +113,7 @@ def main():
                 r = cli.handle_command(line.strip())
                 if r == "quit": on_signal(None, None)
                 if r: continue
+            set_status("thinking...")
             send({"type": "message", "content": line.strip()})
 
     cli.banner()
@@ -77,10 +122,10 @@ def main():
     while True:
         code = run_agent()
         last_exit[0] = code
-        if code == RESTART_CODE: status("restarting"); continue
-        if code == 0: status("clean exit"); break
+        if code == RESTART_CODE: set_status("restarting..."); continue
+        if code == 0: set_status("clean exit"); break
         if last_commit_age() < CRASH_WINDOW: rollback()
-        status(f"crashed (exit {code}), restarting in 2s"); time.sleep(2)
+        set_status(f"crashed (exit {code}), restarting in 2s"); time.sleep(2)
 
 if __name__ == "__main__":
     main()
