@@ -88,8 +88,10 @@ def main():
                 for c in tc:
                     fn, args = c["function"]["name"], c["function"]["arguments"]
                     if isinstance(args, str): args = json.loads(args)
+                    log("tool_call", f"{fn}({json.dumps(args)})")
                     try: result = str(tools.run(fn, args))
                     except Exception as e: result = f"Error: {e}"
+                    log("tool_result", f"{fn} → {result[:500]}")
                     messages.append({"role": "tool", "tool_call_id": c.get("id", ""), "content": result})
 
         except Exception as e:
