@@ -27,20 +27,13 @@ def main():
     def run_agent():
         nonlocal proc
         proc = subprocess.Popen([sys.executable, "-u", os.path.join(root, "core.py")],
-                                stdin=subprocess.PIPE, stdout=subprocess.PIPE, cwd=root)
+                                stdin=subprocess.PIPE, cwd=root)
         stop = threading.Event()
         def ticks():
             while not stop.is_set():
                 stop.wait(TICK_INTERVAL)
                 if not stop.is_set():
                     send({"type": "tick", "time": datetime.now(timezone.utc).isoformat()})
-        def relay_output():
-            try:
-                for line in proc.stdout:
-                    sys.stdout.buffer.write(line)
-                    sys.stdout.buffer.flush()
-            except: pass
-        threading.Thread(target=relay_output, daemon=True).start()
         threading.Thread(target=ticks, daemon=True).start()
 
         if not os.path.exists(os.path.join(root, "self.md")):
