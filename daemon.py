@@ -65,6 +65,9 @@ def main():
         elif last_exit[0] == RESTART_CODE:
             out("rebooted", dim=True)
             send({"type": "message", "content": "You just rebooted. Your conversation memory is gone but your transcript and files remain. Read your transcript to remember what you were doing."})
+        else:
+            out("recovered", dim=True)
+            send({"type": "message", "content": "You crashed and have been restarted. Your conversation memory is gone. Check your transcript and files to recover."})
 
         proc.wait(); stop.set()
         return proc.returncode
