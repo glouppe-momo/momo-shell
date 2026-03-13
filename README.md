@@ -1,4 +1,4 @@
-# 🌀
+# 🌱
 
 A self-improving agent in ~320 lines of Python. It can read, understand, and modify its own source code. Everything else it bootstraps itself.
 

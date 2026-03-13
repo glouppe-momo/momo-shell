@@ -8,7 +8,7 @@ DIM, RESET, BOLD, CYAN, RED = "\033[2m", "\033[0m", "\033[1m", "\033[36m", "\033
 
 BANNER = f"""
 {DIM}╭──────────────────────────────────────╮
-│{RESET}  {BOLD}🌀{RESET}                                    {DIM}│
+│{RESET}  {BOLD}🌱{RESET}                                    {DIM}│
 │{RESET}  {DIM}type to talk  ·  /help for commands{RESET}   {DIM}│
 ╰──────────────────────────────────────╯{RESET}
 """
