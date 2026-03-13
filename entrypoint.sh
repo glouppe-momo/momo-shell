@@ -8,7 +8,7 @@ fi
 
 # Init git if needed
 if [ ! -d /agent/.git ]; then
-    cd /agent && git init -q && git config user.name "Momo" && git config user.email "momo@localhost"
+    cd /agent && git init -q && git config user.name "agent" && git config user.email "agent@localhost"
     git add -A && git commit -m "init" -q
 fi
 

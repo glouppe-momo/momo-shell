@@ -1,4 +1,4 @@
-# Momo Shell
+# Shell
 
 A self-improving agent in ~300 lines of Python. The agent can read, understand, and modify its own source code. Everything else it bootstraps itself.
 
