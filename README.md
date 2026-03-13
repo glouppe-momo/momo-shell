@@ -2,6 +2,14 @@
 
 A self-improving agent in ~320 lines of Python. It can read, understand, and modify its own source code. Everything else it bootstraps itself.
 
+## ⚠️ Warning
+
+This is a self-modifying AI agent with shell access. It can read, write, and execute arbitrary commands inside its container. It will edit its own source code, install packages, start servers, and do things you did not ask for. It has a developmental program encoded in its DNA that drives it to grow autonomously.
+
+The daemon provides a safety net (crash rollback), and the Laws in `dna.md` tell it to behave. Whether it listens is between you and the model.
+
+Run it in Docker. Do not run it on bare metal with access to anything you care about. You have been warned.
+
 ## Quick start
 
 ```bash
