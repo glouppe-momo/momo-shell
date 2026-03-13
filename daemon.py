@@ -8,18 +8,37 @@ RESTART_CODE = 42
 CRASH_WINDOW = 10
 TICK_INTERVAL = 60
 
-HELP = """
-Commands:
-  /files [path]   List files in workspace (default: .)
-  /cat <file>     Show file contents
-  /git [args]     Run git command (default: log --oneline)
-  /log [n]        Show last n lines of transcript (default: 20)
-  /tree           Show workspace tree
-  /help           Show this help
-  /quit           Stop the agent
+# --- Colors ---
+DIM = "\033[2m"
+RESET = "\033[0m"
+BOLD = "\033[1m"
+CYAN = "\033[36m"
+YELLOW = "\033[33m"
+RED = "\033[31m"
+GREEN = "\033[32m"
+MAGENTA = "\033[35m"
 
-Everything else is sent as a message to the agent.
-""".strip()
+BANNER = f"""
+{DIM}╭──────────────────────────────────────╮
+│{RESET}  {BOLD}🌀 momo-shell{RESET}                        {DIM}│
+│{RESET}  {DIM}type to talk  ·  /help for commands{RESET}   {DIM}│
+╰──────────────────────────────────────╯{RESET}
+"""
+
+HELP = f"""
+{DIM}╭─ commands ───────────────────────────╮{RESET}
+{DIM}│{RESET}  {BOLD}/files{RESET} [path]   list workspace files  {DIM}│{RESET}
+{DIM}│{RESET}  {BOLD}/cat{RESET} <file>     show file contents    {DIM}│{RESET}
+{DIM}│{RESET}  {BOLD}/git{RESET} [args]     run git command       {DIM}│{RESET}
+{DIM}│{RESET}  {BOLD}/log{RESET} [n]        last n transcript lines{DIM}│{RESET}
+{DIM}│{RESET}  {BOLD}/tree{RESET}           workspace tree        {DIM}│{RESET}
+{DIM}│{RESET}  {BOLD}/diff{RESET}           changes since init    {DIM}│{RESET}
+{DIM}│{RESET}  {BOLD}/help{RESET}           this help             {DIM}│{RESET}
+{DIM}│{RESET}  {BOLD}/quit{RESET}           stop the agent        {DIM}│{RESET}
+{DIM}╰──────────────────────────────────────╯{RESET}
+"""
+
+PROMPT = f"{CYAN}›{RESET} "
 
 
 def main():
@@ -30,6 +49,7 @@ def main():
     def on_signal(sig, _):
         if proc and proc.poll() is None:
             proc.terminate()
+        print(f"\n{DIM}goodbye{RESET}")
         sys.exit(0)
 
     signal.signal(signal.SIGTERM, on_signal)
@@ -43,8 +63,12 @@ def main():
             except (BrokenPipeError, OSError):
                 pass
 
+    def cmd_output(text):
+        """Print command output, dimmed."""
+        for line in text.rstrip().splitlines():
+            print(f"  {DIM}{line}{RESET}")
+
     def handle_command(cmd):
-        """Handle CLI commands. Returns True if handled."""
         parts = cmd.strip().split(None, 1)
         if not parts:
             return False
@@ -56,44 +80,66 @@ def main():
         elif verb == "/quit":
             if proc and proc.poll() is None:
                 proc.terminate()
+            print(f"\n{DIM}goodbye{RESET}")
             sys.exit(0)
         elif verb == "/files":
             path = os.path.join(root, arg) if arg else root
             try:
                 entries = sorted(os.listdir(path))
                 for e in entries:
+                    if e.startswith(".") or e == "__pycache__":
+                        continue
                     full = os.path.join(path, e)
-                    marker = "/" if os.path.isdir(full) else ""
-                    print(f"  {e}{marker}")
+                    if os.path.isdir(full):
+                        print(f"  {CYAN}{e}/{RESET}")
+                    else:
+                        print(f"  {e}")
             except Exception as e:
-                print(f"  Error: {e}")
+                print(f"  {RED}{e}{RESET}")
         elif verb == "/cat":
             if not arg:
-                print("  Usage: /cat <file>")
+                print(f"  {DIM}usage: /cat <file>{RESET}")
             else:
                 try:
                     with open(os.path.join(root, arg)) as f:
-                        print(f.read())
+                        content = f.read()
+                    print(f"{DIM}{'─' * 40}{RESET}")
+                    print(content.rstrip())
+                    print(f"{DIM}{'─' * 40}{RESET}")
                 except Exception as e:
-                    print(f"  Error: {e}")
+                    print(f"  {RED}{e}{RESET}")
         elif verb == "/git":
-            git_cmd = arg or "log --oneline"
+            git_cmd = arg or "log --oneline -20"
             r = subprocess.run(f"git {git_cmd}", shell=True, capture_output=True,
                                text=True, cwd=root)
-            print(r.stdout or r.stderr or "  (no output)")
+            output = r.stdout or r.stderr or "(no output)"
+            cmd_output(output)
         elif verb == "/log":
             n = int(arg) if arg else 20
             try:
                 with open(os.path.join(root, "transcript.log")) as f:
                     lines = f.readlines()
                 for line in lines[-n:]:
-                    print(f"  {line.rstrip()}")
+                    line = line.rstrip()
+                    if "] user:" in line:
+                        ts, _, rest = line.partition("] ")
+                        print(f"  {DIM}{ts}]{RESET} {BOLD}{rest}{RESET}")
+                    elif "] assistant:" in line:
+                        ts, _, rest = line.partition("] ")
+                        print(f"  {DIM}{ts}]{RESET} {rest}")
+                    else:
+                        print(f"  {DIM}{line}{RESET}")
             except FileNotFoundError:
-                print("  No transcript yet.")
+                print(f"  {DIM}no transcript yet{RESET}")
         elif verb == "/tree":
-            r = subprocess.run("find . -not -path './.git/*' -not -path './.git' | sort",
+            r = subprocess.run(
+                "find . -not -path './.git/*' -not -path './.git' -not -path './__pycache__/*' -not -name '__pycache__' | sort | tail -n +2",
+                shell=True, capture_output=True, text=True, cwd=root)
+            cmd_output(r.stdout or "(empty)")
+        elif verb == "/diff":
+            r = subprocess.run("git diff --stat $(git rev-list --max-parents=0 HEAD)..HEAD 2>/dev/null || echo 'no history'",
                                shell=True, capture_output=True, text=True, cwd=root)
-            print(r.stdout)
+            cmd_output(r.stdout or "(no changes)")
         else:
             return False
         return True
@@ -117,7 +163,7 @@ def main():
 
         # Birth message on first boot
         if not os.path.exists(os.path.join(root, "self.md")):
-            log("first boot — sending birth signal")
+            status("first boot")
             send_event({"type": "message",
                         "content": "You have just been born. Read your DNA. Read your source code. Begin."})
 
@@ -134,20 +180,20 @@ def main():
             return float("inf")
 
     def rollback():
-        log("crash after self-edit, rolling back")
+        status("crash after self-edit, rolling back")
         subprocess.run(["git", "reset", "--hard", "HEAD~1"], cwd=root, capture_output=True)
 
-    def log(msg):
-        print(f"[daemon] {msg}", file=sys.stderr, flush=True)
+    def status(msg):
+        print(f"  {DIM}[daemon] {msg}{RESET}", file=sys.stderr, flush=True)
 
     def input_loop():
-        """Read user input and dispatch commands or messages."""
         while True:
             try:
-                line = input("\n> ")
+                line = input(f"\n{PROMPT}")
             except (EOFError, KeyboardInterrupt):
                 if proc and proc.poll() is None:
                     proc.terminate()
+                print(f"\n{DIM}goodbye{RESET}")
                 sys.exit(0)
             if not line.strip():
                 continue
@@ -156,21 +202,20 @@ def main():
                     continue
             send_event({"type": "message", "content": line.strip()})
 
-    # Start input loop in background
+    print(BANNER)
     threading.Thread(target=input_loop, daemon=True).start()
 
     while True:
-        log("starting agent")
         code = run_agent()
         if code == RESTART_CODE:
-            log("restart requested")
+            status("restarting")
             continue
         if code == 0:
-            log("clean exit")
+            status("clean exit")
             break
         if last_commit_age() < CRASH_WINDOW:
             rollback()
-        log(f"crashed (exit {code}), restarting in 2s")
+        status(f"crashed (exit {code}), restarting in 2s")
         time.sleep(2)
 
 
