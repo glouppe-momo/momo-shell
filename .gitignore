@@ -1,0 +1,4 @@
+config.json
+transcript.log
+__pycache__/
+*.pyc
