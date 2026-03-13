@@ -2,10 +2,10 @@ FROM python:3.12-slim
 
 RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
 
+# Seed files (copied to /agent on first run)
+COPY daemon.py core.py tools.py dna.md /seed/
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
 WORKDIR /agent
-COPY daemon.py core.py tools.py dna.md ./
-
-RUN git init && git config user.name "Momo" && git config user.email "momo@localhost" \
-    && git add -A && git commit -m "init" -q
-
-CMD ["python", "daemon.py"]
+ENTRYPOINT ["/entrypoint.sh"]
