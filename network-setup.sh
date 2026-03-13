@@ -6,13 +6,21 @@
 docker network inspect agent-net >/dev/null 2>&1 || \
   docker network create agent-net --subnet 172.30.0.0/24
 
-# iptables: allow agent-net → host:11434 (Ollama), block everything else
-# Drop existing rules first (idempotent)
-iptables -D FORWARD -s 172.30.0.0/24 -d 172.30.0.1 -p tcp --dport 11434 -j ACCEPT 2>/dev/null
-iptables -D FORWARD -s 172.30.0.0/24 -j DROP 2>/dev/null
+# Flush existing rules for this subnet
+iptables -S FORWARD | grep "172.30.0.0/24" | while read rule; do
+  iptables $(echo "$rule" | sed 's/^-A/-D/')
+done 2>/dev/null
 
-# Add rules (order matters: allow before drop)
+# Allow ONLY Ollama (port 11434), drop everything else to the host gateway
 iptables -I FORWARD -s 172.30.0.0/24 -j DROP
 iptables -I FORWARD -s 172.30.0.0/24 -d 172.30.0.1 -p tcp --dport 11434 -j ACCEPT
+
+# Also block direct access to host services via INPUT (for gateway IP)
+iptables -S INPUT | grep "172.30.0.0/24" | while read rule; do
+  iptables $(echo "$rule" | sed 's/^-A/-D/')
+done 2>/dev/null
+
+iptables -I INPUT -s 172.30.0.0/24 -j DROP
+iptables -I INPUT -s 172.30.0.0/24 -d 172.30.0.1 -p tcp --dport 11434 -j ACCEPT
 
 echo "agent-net ready. Agents can reach Ollama at 172.30.0.1:11434, nothing else."
