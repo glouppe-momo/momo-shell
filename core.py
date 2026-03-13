@@ -17,12 +17,9 @@ def load_config():
             "max_rounds": int(os.environ.get("MAX_ROUNDS", "20"))}
 
 def system_prompt():
-    parts = []
-    for name in ("dna.md", "self.md"):
-        try:
-            with open(os.path.join(ROOT, name)) as f: parts.append(f.read())
-        except FileNotFoundError: pass
-    return "\n\n---\n\n".join(parts) or "You are an AI agent."
+    try:
+        with open(os.path.join(ROOT, "dna.md")) as f: return f.read()
+    except FileNotFoundError: return "You are an AI agent."
 
 def log(role, text):
     with open(TRANSCRIPT, "a") as f:
