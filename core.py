@@ -15,8 +15,16 @@ TRIM_TO = 50
 
 
 def load_config():
-    with open(os.path.join(ROOT, "config.json")) as f:
-        return json.load(f)
+    path = os.path.join(ROOT, "config.json")
+    if os.path.exists(path):
+        with open(path) as f:
+            return json.load(f)
+    # Fall back to environment variables
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        print("Error: no config.json and no ANTHROPIC_API_KEY set", file=sys.stderr)
+        sys.exit(1)
+    return {"api_key": api_key, "model": os.environ.get("MODEL", "claude-sonnet-4-20250514")}
 
 
 def read_if_exists(name):
