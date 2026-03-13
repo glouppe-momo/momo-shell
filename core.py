@@ -13,7 +13,8 @@ def load_config():
         with open(path) as f: return json.load(f)
     return {"base_url": os.environ.get("BASE_URL", "http://172.30.0.1:11434/v1"),
             "api_key": os.environ.get("API_KEY", "ollama"),
-            "model": os.environ.get("MODEL", "qwen3.5:35b")}
+            "model": os.environ.get("MODEL", "qwen3.5:35b"),
+            "max_rounds": int(os.environ.get("MAX_ROUNDS", "20"))}
 
 def system_prompt():
     parts = []
@@ -63,10 +64,11 @@ def main():
         messages.append({"role": "user", "content": content})
         snapshot = len(messages)
 
-        max_rounds = 20
+        rounds = 0
+        max_rounds = config.get("max_rounds", 20)
         try:
-            while max_rounds > 0:
-                max_rounds -= 1
+            while rounds < max_rounds:
+                rounds += 1
                 try: data = chat(config, messages, tool_defs)
                 except urllib.error.HTTPError as e:
                     if any(k in str(e).lower() for k in ["context length", "too long", "token limit"]):
