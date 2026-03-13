@@ -12,6 +12,7 @@ def main():
     root = os.path.dirname(os.path.abspath(__file__))
     proc = None
     lock = threading.Lock()
+    last_exit = [None]  # track last exit code
 
     def on_signal(sig, _):
         if proc and proc.poll() is None: proc.terminate()
@@ -39,6 +40,9 @@ def main():
         if not os.path.exists(os.path.join(root, "self.md")):
             status("first boot")
             send({"type": "message", "content": "You have just been born. Read your DNA. Read your source code. Begin."})
+        elif last_exit[0] == RESTART_CODE:
+            status("rebooted")
+            send({"type": "message", "content": "You just rebooted. Your conversation memory is gone but your transcript and files remain. Read your transcript to remember what you were doing."})
 
         proc.wait(); stop.set()
         return proc.returncode
@@ -72,6 +76,7 @@ def main():
 
     while True:
         code = run_agent()
+        last_exit[0] = code
         if code == RESTART_CODE: status("restarting"); continue
         if code == 0: status("clean exit"); break
         if last_commit_age() < CRASH_WINDOW: rollback()
