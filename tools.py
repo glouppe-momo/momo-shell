@@ -32,7 +32,7 @@ def shell_exec(command: str, timeout: int = 30) -> str:
         return f"timeout after {timeout}s"
 
 def restart():
-    """Restart the agent. Call this after editing your own code. The daemon will relaunch with the new version."""
+    """Restart the agent process so edited code takes effect. Call this tool directly after modifying core.py or tools.py."""
     sys.exit(42)
 
 def _commit(msg):

@@ -2,6 +2,7 @@
 """Supervisor. Sacred. Do not modify."""
 import json, os, signal, subprocess, sys, threading, time
 from datetime import datetime, timezone
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cli
 
 RESTART_CODE = 42
@@ -9,7 +10,7 @@ CRASH_WINDOW = 10
 TICK_INTERVAL = 60
 
 def main():
-    root = os.path.dirname(os.path.abspath(__file__))
+    root = os.environ.get("AGENT_DIR", "/agent")
     proc = None
     lock = threading.Lock()
     last_exit = [None]

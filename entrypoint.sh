@@ -2,8 +2,8 @@
 git config --global --add safe.directory /agent
 
 # Seed workspace if empty (first run with volume mount)
-if [ ! -f /agent/daemon.py ]; then
-    cp /seed/* /agent/
+if [ ! -f /agent/core.py ]; then
+    cp /seed/core.py /seed/tools.py /seed/dna.md /agent/
 fi
 
 # Init git if needed
@@ -12,4 +12,4 @@ if [ ! -d /agent/.git ]; then
     git add -A && git commit -m "init" -q
 fi
 
-exec python daemon.py
+exec python /app/daemon.py
