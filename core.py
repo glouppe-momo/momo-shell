@@ -74,32 +74,36 @@ def main():
         messages.append({"role": "user", "content": content})
 
         # Agentic loop: call LLM, handle tool use, repeat
-        while True:
-            response = client.messages.create(
-                model=model, max_tokens=4096,
-                system=system, tools=tool_defs, messages=messages,
-            )
-            messages.append({"role": "assistant", "content": response.content})
+        try:
+            while True:
+                response = client.messages.create(
+                    model=model, max_tokens=4096,
+                    system=system, tools=tool_defs, messages=messages,
+                )
+                messages.append({"role": "assistant", "content": response.content})
 
-            for block in response.content:
-                if block.type == "text":
-                    print(block.text, flush=True)
-                    transcript("assistant", block.text)
+                for block in response.content:
+                    if block.type == "text":
+                        print(block.text, flush=True)
+                        transcript("assistant", block.text)
 
-            if response.stop_reason != "tool_use":
-                break
+                if response.stop_reason != "tool_use":
+                    break
 
-            results = []
-            for block in response.content:
-                if block.type == "tool_use":
-                    try:
-                        result = str(tools.run(block.name, block.input))
-                        results.append({"type": "tool_result", "tool_use_id": block.id,
-                                        "content": result})
-                    except Exception as e:
-                        results.append({"type": "tool_result", "tool_use_id": block.id,
-                                        "content": f"Error: {e}", "is_error": True})
-            messages.append({"role": "user", "content": results})
+                results = []
+                for block in response.content:
+                    if block.type == "tool_use":
+                        try:
+                            result = str(tools.run(block.name, block.input))
+                            results.append({"type": "tool_result", "tool_use_id": block.id,
+                                            "content": result})
+                        except Exception as e:
+                            results.append({"type": "tool_result", "tool_use_id": block.id,
+                                            "content": f"Error: {e}", "is_error": True})
+                messages.append({"role": "user", "content": results})
+        except Exception as e:
+            print(f"[error] {e}", file=sys.stderr, flush=True)
+            messages.pop()  # remove the failed user message
 
         # Trim context if it grows too long
         if len(messages) > MAX_MESSAGES:
