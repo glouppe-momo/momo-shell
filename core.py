@@ -1,15 +1,13 @@
 #!/usr/bin/env python3
 """Agent consciousness. Editable by the agent."""
 
-import json, os, sys, urllib.request
+import json, os, sys, urllib.error, urllib.request
 from datetime import datetime, timezone
 
 import tools
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 TRANSCRIPT = os.path.join(ROOT, "transcript.log")
-MAX_MESSAGES = 100
-TRIM_TO = 50
 
 
 def load_config():
@@ -60,6 +58,31 @@ def chat(config, messages, tool_defs):
         return json.loads(resp.read())
 
 
+def is_context_overflow(error):
+    """Detect context length errors from various providers."""
+    msg = str(error).lower()
+    return any(k in msg for k in ["context length", "too long", "token limit",
+                                   "maximum context", "content too large"])
+
+
+def trim_messages(messages, keep_last=6):
+    """Emergency trim: keep system message + last few exchanges.
+
+    Ensures tool_call/tool_result pairs stay intact by finding a safe
+    cut point where the first kept message is a user text message.
+    """
+    if len(messages) <= keep_last + 1:
+        return messages
+    system = messages[0]
+    tail = messages[-(keep_last):]
+    # Walk forward to find a clean user message as the start
+    for i, m in enumerate(tail):
+        if m.get("role") == "user" and isinstance(m.get("content"), str):
+            return [system] + tail[i:]
+    # Fallback: just keep system + last message
+    return [system, tail[-1]]
+
+
 def main():
     config = load_config()
     system = system_prompt()
@@ -88,7 +111,17 @@ def main():
 
         try:
             while True:
-                data = chat(config, messages, tool_defs)
+                try:
+                    data = chat(config, messages, tool_defs)
+                except urllib.error.HTTPError as e:
+                    if is_context_overflow(e):
+                        notice = "[context overflow — trimming history]"
+                        print(notice, flush=True)
+                        transcript("system", notice)
+                        messages = trim_messages(messages)
+                        continue
+                    raise
+
                 msg = data["choices"][0]["message"]
                 text = msg.get("content") or ""
                 tool_calls = msg.get("tool_calls") or []
@@ -115,9 +148,9 @@ def main():
             print(f"[error] {e}", file=sys.stderr, flush=True)
             messages = messages[:snapshot]
 
-        # Keep system message + last N
-        if len(messages) > MAX_MESSAGES:
-            messages = [messages[0]] + messages[-(TRIM_TO - 1):]
+        # Soft trim: if message list grows large, cut from the middle
+        if len(messages) > 80:
+            messages = trim_messages(messages, keep_last=30)
 
 
 if __name__ == "__main__":
