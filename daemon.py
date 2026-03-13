@@ -20,7 +20,7 @@ MAGENTA = "\033[35m"
 
 BANNER = f"""
 {DIM}╭──────────────────────────────────────╮
-│{RESET}  {BOLD}🌀 momo-shell{RESET}                        {DIM}│
+│{RESET}  {BOLD}🌀{RESET}                                    {DIM}│
 │{RESET}  {DIM}type to talk  ·  /help for commands{RESET}   {DIM}│
 ╰──────────────────────────────────────╯{RESET}
 """
