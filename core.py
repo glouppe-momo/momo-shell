@@ -11,7 +11,7 @@ def load_config():
     path = os.path.join(ROOT, "config.json")
     if os.path.exists(path):
         with open(path) as f: return json.load(f)
-    return {"base_url": os.environ.get("BASE_URL", "http://127.0.0.1:11434/v1"),
+    return {"base_url": os.environ.get("BASE_URL", "http://172.30.0.1:11434/v1"),
             "api_key": os.environ.get("API_KEY", "ollama"),
             "model": os.environ.get("MODEL", "qwen3.5:35b")}
 

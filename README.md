@@ -14,8 +14,15 @@ Run it in Docker. Do not run it on bare metal with access to anything you care a
 
 ```bash
 docker build -t momo-shell .
-docker run -it --network host momo-shell
+
+# First time: create isolated network (needs sudo for iptables)
+sudo sh network-setup.sh
+
+# Run the agent
+docker run -it --network agent-net momo-shell
 ```
+
+The agent can only reach Ollama on the host. No other network access.
 
 The agent connects to a local [Ollama](https://ollama.com) instance by default. Make sure it's running with a model pulled:
 
@@ -27,7 +34,7 @@ ollama pull qwen3.5:35b
 
 ```bash
 mkdir -p ~/my-agent
-docker run -it --network host -v ~/my-agent:/agent momo-shell
+docker run -it --network agent-net -v ~/my-agent:/agent momo-shell
 ```
 
 Files persist across restarts. The agent picks up where it left off.
@@ -38,12 +45,12 @@ Via environment variables:
 
 ```bash
 # Local Ollama (default)
-docker run -it --network host momo-shell
+docker run -it --network agent-net momo-shell
 
 # Different model
-docker run -it --network host -e MODEL=qwen3:30b momo-shell
+docker run -it --network agent-net -e MODEL=qwen3:30b momo-shell
 
-# OpenAI
+# Unrestricted network (e.g. for external APIs)
 docker run -it --network host \
   -e BASE_URL=https://api.openai.com/v1 \
   -e API_KEY=sk-... \
