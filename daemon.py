@@ -27,27 +27,13 @@ def main():
 
     def agent_print(text):
         """Print agent output without clobbering user's input line."""
-        with lock:
-            try:
-                import readline
-                buf = readline.get_line_buffer()
-                # Clear current line, print output, restore prompt
-                sys.stdout.write(f"\r\033[K{text}\n")
-                sys.stdout.write(f"{cli.PROMPT}{buf}")
-                sys.stdout.flush()
-            except:
-                print(text, flush=True)
+        sys.stdout.write(f"\r\033[K{text}\n")
+        sys.stdout.flush()
 
     def set_status(text):
-        """Show a dim status indicator, overwritten by next output."""
-        with lock:
-            try:
-                import readline
-                buf = readline.get_line_buffer()
-                sys.stdout.write(f"\r\033[K  {cli.DIM}{text}{cli.RESET}\n{cli.PROMPT}{buf}")
-                sys.stdout.flush()
-            except:
-                pass
+        """Show a dim status indicator."""
+        sys.stdout.write(f"\r\033[K  {cli.DIM}{text}{cli.RESET}\n")
+        sys.stdout.flush()
 
     def run_agent():
         nonlocal proc
