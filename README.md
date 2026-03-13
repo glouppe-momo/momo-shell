@@ -26,8 +26,8 @@ ollama pull qwen3.5:35b
 ### Persistent workspace
 
 ```bash
-mkdir -p ~/momo-workspace
-docker run -it --network host -v ~/momo-workspace:/agent momo-shell
+mkdir -p ~/my-agent
+docker run -it --network host -v ~/my-agent:/agent momo-shell
 ```
 
 Files persist across restarts. The agent picks up where it left off.
