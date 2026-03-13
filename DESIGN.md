@@ -73,6 +73,14 @@ The kernel ships with no memory, no messaging, no scheduled rhythms. The agent b
 The developmental program is encoded. The implementation is emergent.
 
 
+## Environment as Driver of Evolution
+
+The kernel provides the organism. The environment determines what it becomes. In a sterile container with no stimuli, every agent converges on the same pattern: build memory, build reflection, explore, wait. The infrastructure exists but has nothing to serve.
+
+A richer environment (data to process, problems to solve, events to react to, other agents to communicate with, constraints to navigate) would drive divergent evolution. The DNA encodes what to grow; the environment determines why it matters.
+
+This is not implemented. It's the next frontier.
+
 ## Open Questions
 
 **Randomness at birth.** Should the kernel inject random elements at first boot? A random favorite color, a quirk, a slight preference bias. Biological DNA has junk sequences and random mutations. A deterministic seed produces a deterministic organism. A little chaos might produce something more alive.
