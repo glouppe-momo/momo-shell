@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
 """Agent consciousness. Editable by the agent."""
 
-import json, os, sys
+import json, os, sys, urllib.request
 from datetime import datetime, timezone
-
-from anthropic import Anthropic
 
 import tools
 
@@ -19,18 +17,16 @@ def load_config():
     if os.path.exists(path):
         with open(path) as f:
             return json.load(f)
-    # Fall back to environment variables
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
-        print("Error: no config.json and no ANTHROPIC_API_KEY set", file=sys.stderr)
-        sys.exit(1)
-    return {"api_key": api_key, "model": os.environ.get("MODEL", "claude-sonnet-4-20250514")}
+    return {
+        "base_url": os.environ.get("BASE_URL", "http://127.0.0.1:11434/v1"),
+        "api_key": os.environ.get("API_KEY", "ollama"),
+        "model": os.environ.get("MODEL", "qwen3.5:35b"),
+    }
 
 
 def read_if_exists(name):
-    path = os.path.join(ROOT, name)
     try:
-        with open(path) as f:
+        with open(os.path.join(ROOT, name)) as f:
             return f.read()
     except FileNotFoundError:
         return None
@@ -46,13 +42,29 @@ def transcript(role, text):
         f.write(f"[{datetime.now(timezone.utc).isoformat()}] {role}: {text}\n")
 
 
+def openai_tools(tool_defs):
+    return [{"type": "function", "function": {"name": t["name"],
+            "description": t["description"], "parameters": t["input_schema"]}}
+            for t in tool_defs]
+
+
+def chat(config, messages, tool_defs):
+    body = json.dumps({"model": config["model"], "messages": messages,
+                        "tools": tool_defs}).encode()
+    req = urllib.request.Request(
+        f"{config['base_url']}/chat/completions", data=body,
+        headers={"Content-Type": "application/json",
+                 "Authorization": f"Bearer {config['api_key']}"},
+    )
+    with urllib.request.urlopen(req, timeout=300) as resp:
+        return json.loads(resp.read())
+
+
 def main():
     config = load_config()
-    client = Anthropic(api_key=config["api_key"])
-    model = config.get("model", "claude-sonnet-4-20250514")
     system = system_prompt()
-    tool_defs = tools.definitions()
-    messages = []
+    tool_defs = openai_tools(tools.definitions())
+    messages = [{"role": "system", "content": system}]
 
     for line in sys.stdin:
         try:
@@ -72,42 +84,40 @@ def main():
         content = event["content"]
         transcript("user", content)
         messages.append({"role": "user", "content": content})
+        snapshot = len(messages)
 
-        # Agentic loop: call LLM, handle tool use, repeat
         try:
             while True:
-                response = client.messages.create(
-                    model=model, max_tokens=4096,
-                    system=system, tools=tool_defs, messages=messages,
-                )
-                messages.append({"role": "assistant", "content": response.content})
+                data = chat(config, messages, tool_defs)
+                msg = data["choices"][0]["message"]
+                text = msg.get("content") or ""
+                tool_calls = msg.get("tool_calls") or []
 
-                for block in response.content:
-                    if block.type == "text":
-                        print(block.text, flush=True)
-                        transcript("assistant", block.text)
+                if text:
+                    print(text, flush=True)
+                    transcript("assistant", text)
 
-                if response.stop_reason != "tool_use":
+                if not tool_calls:
+                    messages.append({"role": "assistant", "content": text})
                     break
 
-                results = []
-                for block in response.content:
-                    if block.type == "tool_use":
-                        try:
-                            result = str(tools.run(block.name, block.input))
-                            results.append({"type": "tool_result", "tool_use_id": block.id,
-                                            "content": result})
-                        except Exception as e:
-                            results.append({"type": "tool_result", "tool_use_id": block.id,
-                                            "content": f"Error: {e}", "is_error": True})
-                messages.append({"role": "user", "content": results})
+                messages.append(msg)
+                for tc in tool_calls:
+                    fn = tc["function"]
+                    args = json.loads(fn["arguments"]) if isinstance(fn["arguments"], str) else fn["arguments"]
+                    try:
+                        result = str(tools.run(fn["name"], args))
+                    except Exception as e:
+                        result = f"Error: {e}"
+                    messages.append({"role": "tool", "tool_call_id": tc.get("id", ""),
+                                     "content": result})
         except Exception as e:
             print(f"[error] {e}", file=sys.stderr, flush=True)
-            messages.pop()  # remove the failed user message
+            messages = messages[:snapshot]
 
-        # Trim context if it grows too long
+        # Keep system message + last N
         if len(messages) > MAX_MESSAGES:
-            messages = messages[-TRIM_TO:]
+            messages = [messages[0]] + messages[-(TRIM_TO - 1):]
 
 
 if __name__ == "__main__":

@@ -1,4 +1,5 @@
 {
-  "api_key": "sk-ant-...",
-  "model": "claude-sonnet-4-20250514"
+  "base_url": "http://127.0.0.1:11434/v1",
+  "api_key": "ollama",
+  "model": "qwen3.5:35b"
 }
