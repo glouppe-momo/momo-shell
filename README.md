@@ -1,6 +1,6 @@
 # 🌀
 
-A self-improving agent in ~480 lines of Python. It can read, understand, and modify its own source code. Everything else it bootstraps itself.
+A self-improving agent in ~320 lines of Python. It can read, understand, and modify its own source code. Everything else it bootstraps itself.
 
 ## Quick start
 
@@ -61,10 +61,10 @@ Four files. Zero dependencies beyond Python's standard library.
 
 | File | Lines | Role |
 |---|---|---|
-| `daemon.py` | ~120 | Supervisor: crash recovery, git rollback, ticks |
-| `core.py` | ~160 | Agent loop: LLM calls, tool execution, transcript |
-| `tools.py` | ~80 | Four primitives: read, write, edit, exec |
-| `cli.py` | ~130 | Human interface: prompt, commands, colors |
+| `daemon.py` | ~80 | Supervisor: crash recovery, git rollback, ticks |
+| `core.py` | ~100 | Agent loop: LLM calls, tool execution, transcript |
+| `tools.py` | ~60 | Four primitives: read, write, edit, exec |
+| `cli.py` | ~80 | Human interface: prompt, commands, colors |
 
 The agent also gets:
 - **`dna.md`** — its seed. Identity, drives, developmental program, laws.

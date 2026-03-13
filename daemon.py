@@ -1,15 +1,12 @@
 #!/usr/bin/env python3
 """Supervisor. Sacred. Do not modify."""
-
 import json, os, signal, subprocess, sys, threading, time
 from datetime import datetime, timezone
-
 import cli
 
 RESTART_CODE = 42
 CRASH_WINDOW = 10
 TICK_INTERVAL = 60
-
 
 def main():
     root = os.path.dirname(os.path.abspath(__file__))
@@ -17,56 +14,40 @@ def main():
     lock = threading.Lock()
 
     def on_signal(sig, _):
-        if proc and proc.poll() is None:
-            proc.terminate()
-        cli.goodbye()
-        sys.exit(0)
-
+        if proc and proc.poll() is None: proc.terminate()
+        cli.goodbye(); sys.exit(0)
     signal.signal(signal.SIGTERM, on_signal)
     signal.signal(signal.SIGINT, on_signal)
 
-    def send_event(event):
+    def send(event):
         with lock:
-            try:
-                proc.stdin.write((json.dumps(event) + "\n").encode())
-                proc.stdin.flush()
-            except (BrokenPipeError, OSError):
-                pass
+            try: proc.stdin.write((json.dumps(event) + "\n").encode()); proc.stdin.flush()
+            except (BrokenPipeError, OSError): pass
 
     def run_agent():
         nonlocal proc
-        proc = subprocess.Popen(
-            [sys.executable, "-u", os.path.join(root, "core.py")],
-            stdin=subprocess.PIPE, cwd=root,
-        )
+        proc = subprocess.Popen([sys.executable, "-u", os.path.join(root, "core.py")],
+                                stdin=subprocess.PIPE, cwd=root)
         stop = threading.Event()
-
-        def send_ticks():
+        def ticks():
             while not stop.is_set():
                 stop.wait(TICK_INTERVAL)
-                if stop.is_set():
-                    break
-                send_event({"type": "tick", "time": datetime.now(timezone.utc).isoformat()})
+                if not stop.is_set():
+                    send({"type": "tick", "time": datetime.now(timezone.utc).isoformat()})
+        threading.Thread(target=ticks, daemon=True).start()
 
-        threading.Thread(target=send_ticks, daemon=True).start()
-
-        # Birth message on first boot
         if not os.path.exists(os.path.join(root, "self.md")):
             status("first boot")
-            send_event({"type": "message",
-                        "content": "You have just been born. Read your DNA. Read your source code. Begin."})
+            send({"type": "message", "content": "You have just been born. Read your DNA. Read your source code. Begin."})
 
-        proc.wait()
-        stop.set()
+        proc.wait(); stop.set()
         return proc.returncode
 
     def last_commit_age():
         try:
-            r = subprocess.run(["git", "log", "-1", "--format=%ct"],
-                               capture_output=True, text=True, cwd=root)
+            r = subprocess.run(["git", "log", "-1", "--format=%ct"], capture_output=True, text=True, cwd=root)
             return time.time() - int(r.stdout.strip())
-        except Exception:
-            return float("inf")
+        except Exception: return float("inf")
 
     def rollback():
         status("crash after self-edit, rolling back")
@@ -77,42 +58,24 @@ def main():
 
     def input_loop():
         while True:
-            try:
-                line = cli.prompt()
-            except (EOFError, KeyboardInterrupt):
-                if proc and proc.poll() is None:
-                    proc.terminate()
-                cli.goodbye()
-                sys.exit(0)
-            if not line.strip():
-                continue
+            try: line = cli.prompt()
+            except (EOFError, KeyboardInterrupt): on_signal(None, None)
+            if not line.strip(): continue
             if line.strip().startswith("/"):
-                result = cli.handle_command(line.strip())
-                if result == "quit":
-                    if proc and proc.poll() is None:
-                        proc.terminate()
-                    cli.goodbye()
-                    sys.exit(0)
-                if result:
-                    continue
-            send_event({"type": "message", "content": line.strip()})
+                r = cli.handle_command(line.strip())
+                if r == "quit": on_signal(None, None)
+                if r: continue
+            send({"type": "message", "content": line.strip()})
 
     cli.banner()
     threading.Thread(target=input_loop, daemon=True).start()
 
     while True:
         code = run_agent()
-        if code == RESTART_CODE:
-            status("restarting")
-            continue
-        if code == 0:
-            status("clean exit")
-            break
-        if last_commit_age() < CRASH_WINDOW:
-            rollback()
-        status(f"crashed (exit {code}), restarting in 2s")
-        time.sleep(2)
-
+        if code == RESTART_CODE: status("restarting"); continue
+        if code == 0: status("clean exit"); break
+        if last_commit_age() < CRASH_WINDOW: rollback()
+        status(f"crashed (exit {code}), restarting in 2s"); time.sleep(2)
 
 if __name__ == "__main__":
     main()
