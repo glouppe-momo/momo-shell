@@ -315,6 +315,10 @@ def main(scr):
                     drop_message(r[1])
                     continue
                 if isinstance(r, tuple) and r[0] == "say":
+                    present = os.path.join(root, ".present")
+                    if not os.path.exists(present):
+                        out("  you must /here first", style="dim")
+                        continue
                     out(f"  you → say: {r[1]}", style="user")
                     send({"type": "say", "content": r[1]})
                     continue
