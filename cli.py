@@ -68,24 +68,48 @@ class TUI:
                 h, w = self.scr.getmaxyx()
                 out_h = h - 3
 
-                # Output area
+                # Output area — compute visible lines accounting for wrapping
+                def wrapped_height(text):
+                    if not text: return 1
+                    return max(1, (len(text) + w - 2) // (w - 1))
+
                 total = len(self.lines)
                 end = total - self.scroll
-                start = max(0, end - out_h)
-                visible = self.lines[start:end] if end > 0 else []
+                if end <= 0:
+                    visible = []
+                else:
+                    # Walk backwards from end to fill out_h rows
+                    visible = []
+                    rows_used = 0
+                    for idx in range(end - 1, -1, -1):
+                        text, style = self.lines[idx]
+                        h_needed = wrapped_height(text)
+                        if rows_used + h_needed > out_h:
+                            break
+                        visible.insert(0, (text, style))
+                        rows_used += h_needed
 
-                for i, (text, style) in enumerate(visible):
-                    if i >= out_h: break
-                    display = text[:w-1]
-                    try:
-                        if style == "dim":
-                            self.scr.addstr(i, 0, display, curses.color_pair(3))
-                        elif style == "bold":
-                            self.scr.addstr(i, 0, display, curses.A_BOLD)
-                        else:
-                            self.scr.addstr(i, 0, display)
-                    except curses.error:
-                        pass
+                row = 0
+                for text, style in visible:
+                    if row >= out_h: break
+                    # Wrap long lines
+                    chunks = []
+                    while len(text) > w - 1:
+                        chunks.append(text[:w-1])
+                        text = "  " + text[w-1:]  # indent continuation
+                    chunks.append(text)
+                    for chunk in chunks:
+                        if row >= out_h: break
+                        try:
+                            if style == "dim":
+                                self.scr.addstr(row, 0, chunk, curses.color_pair(3))
+                            elif style == "bold":
+                                self.scr.addstr(row, 0, chunk, curses.A_BOLD)
+                            else:
+                                self.scr.addstr(row, 0, chunk)
+                        except curses.error:
+                            pass
+                        row += 1
 
                 # Scroll indicator
                 if self.scroll > 0:
