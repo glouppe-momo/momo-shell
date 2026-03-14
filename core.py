@@ -105,14 +105,13 @@ def on_crash(event):
     return event.get("content")
 
 def on_tick(event):
-    # TODO: this is where you add your rhythms.
-    # You could check your inbox, reflect, or do anything.
+    # TODO: what do you want to do when time passes?
     # Return a string to think and act. Return None to stay silent.
     return None
 
 def on_presence(event):
-    # TODO: someone arrived or left. event["status"] is "here" or "away".
-    # You could greet them, or note their absence.
+    # TODO: something changed in your environment.
+    # Return a string to think and act. Return None to stay silent.
     return None
 
 def on_say(event):
