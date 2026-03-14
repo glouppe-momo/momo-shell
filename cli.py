@@ -32,9 +32,10 @@ class TUI:
     def start(self, scr):
         self.scr = scr
         curses.use_default_colors()
-        curses.init_pair(1, curses.COLOR_CYAN, -1)
+        curses.init_pair(1, curses.COLOR_CYAN, -1)      # input prompt
         curses.init_pair(2, curses.COLOR_BLACK, curses.COLOR_WHITE)  # status bar
-        curses.init_pair(3, curses.COLOR_YELLOW, -1)  # dim
+        curses.init_pair(3, curses.COLOR_YELLOW, -1)   # dim
+        curses.init_pair(4, curses.COLOR_GREEN, -1)    # user
         curses.curs_set(1)
         scr.timeout(100)
         scr.keypad(True)
@@ -105,6 +106,8 @@ class TUI:
                                 self.scr.addstr(row, 0, chunk, curses.color_pair(3))
                             elif style == "bold":
                                 self.scr.addstr(row, 0, chunk, curses.A_BOLD)
+                            elif style == "user":
+                                self.scr.addstr(row, 0, chunk, curses.color_pair(4))
                             else:
                                 self.scr.addstr(row, 0, chunk)
                         except curses.error:

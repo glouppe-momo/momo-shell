@@ -54,7 +54,7 @@ def main(scr):
         ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S-%f")
         path = os.path.join(inbox, f"{ts}.md")
         with open(path, "w") as f: f.write(text)
-        out(f"  → inbox/{os.path.basename(path)}", style="dim")
+        out(f"  you → inbox/{os.path.basename(path)}: {text[:60]}", style="user")
 
     def run_agent():
         nonlocal proc
@@ -312,7 +312,7 @@ def main(scr):
                     drop_message(r[1])
                     continue
                 if isinstance(r, tuple) and r[0] == "say":
-                    out(f"  → stdin: {r[1]}", style="dim")
+                    out(f"  you → stdin: {r[1]}", style="user")
                     send({"type": "message", "content": r[1]})
                     continue
                 if isinstance(r, tuple) and r[0] == "event":
