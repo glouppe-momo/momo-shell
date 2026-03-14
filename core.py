@@ -14,7 +14,7 @@ def load_config():
     return {"base_url": os.environ.get("BASE_URL", "http://172.30.0.1:11434/v1"),
             "api_key": os.environ.get("API_KEY", "ollama"),
             "model": os.environ.get("MODEL", "qwen3.5:35b"),
-            "max_rounds": int(os.environ.get("MAX_ROUNDS", "100"))}
+            "max_rounds": int(os.environ.get("MAX_ROUNDS", "30"))}
 
 def system_prompt():
     try:
