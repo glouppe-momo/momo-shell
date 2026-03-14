@@ -1,17 +1,12 @@
 #!/usr/bin/env python3
 """This is you. This file is your mind. When you edit it, you change how you think."""
-import json, os, sys, urllib.error, urllib.request
+import json, os, sys
 from datetime import datetime, timezone
 import tools
+import voice
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 TRANSCRIPT = os.path.join(ROOT, "transcript.log")
-
-def load_config():
-    path = os.path.join(ROOT, "config.json")
-    if os.path.exists(path):
-        with open(path) as f: return json.load(f)
-    return {}
 
 def system_prompt(base=""):
     """Combine the base prompt (from environment) with dna.md."""
@@ -28,13 +23,6 @@ def log(role, text):
 def status(msg):
     print(f"[status:{msg}]", file=sys.stderr, flush=True)
 
-def chat(config, messages, tool_defs):
-    status("thinking...")
-    body = json.dumps({"model": config["model"], "messages": messages, "tools": tool_defs}).encode()
-    req = urllib.request.Request(f"{config['base_url']}/chat/completions", data=body,
-        headers={"Content-Type": "application/json", "Authorization": f"Bearer {config['api_key']}"})
-    with urllib.request.urlopen(req, timeout=300) as r: return json.loads(r.read())
-
 def trim(messages, keep=30):
     """Keep system message + last N, starting at a clean user message."""
     if len(messages) <= keep + 1: return messages
@@ -45,22 +33,22 @@ def trim(messages, keep=30):
     return [messages[0], tail[-1]]
 
 def respond(config, messages, tool_defs):
-    """Run the agent loop: LLM call, tool execution, repeat until done.
+    """Think and act in a loop until done or out of rounds.
     Returns True if finished naturally, False if hit max_rounds."""
     rounds = 0
     max_rounds = config.get("max_rounds", 30)
     while rounds < max_rounds:
         rounds += 1
-        try: data = chat(config, messages, tool_defs)
-        except urllib.error.HTTPError as e:
-            if any(k in str(e).lower() for k in ["context length", "too long", "token limit"]):
+        try:
+            msg = voice.think(messages, tool_defs)
+        except Exception as e:
+            if "context length" in str(e).lower() or "too long" in str(e).lower():
                 print("[context overflow — trimming]", flush=True)
                 log("system", "[context overflow]")
                 messages[:] = trim(messages, keep=6)
                 continue
             raise
 
-        msg = data["choices"][0]["message"]
         text, tc = msg.get("content") or "", msg.get("tool_calls") or []
 
         if text:
@@ -137,7 +125,7 @@ HANDLERS = {
 }
 
 def main():
-    config = load_config()
+    config = {}
     tool_defs = [{"type": "function", "function": {"name": t["name"],
                   "description": t["description"], "parameters": t["input_schema"]}}
                  for t in tools.definitions()]
@@ -152,8 +140,8 @@ def main():
         # The environment gives you your voice and your mind before your first thought.
         if etype == "system":
             llm = event.get("llm", {})
-            config.update(llm)
-            config.setdefault("max_rounds", 30)
+            voice.configure(llm)
+            config["max_rounds"] = llm.get("max_rounds", 30)
             base_prompt = event.get("prompt", "")
             messages = [{"role": "system", "content": system_prompt(base_prompt)}]
             continue

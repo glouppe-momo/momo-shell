@@ -12,4 +12,5 @@ if [ ! -d /agent/.git ]; then
     git add -A && git commit -m "init" -q
 fi
 
+export PYTHONPATH="/app:$PYTHONPATH"
 exec python /app/daemon.py
