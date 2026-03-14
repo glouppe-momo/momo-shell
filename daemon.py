@@ -121,6 +121,11 @@ def main(scr):
                 cli.set_status(status)
             else:
                 out(text, style="dim")
+                # Log errors to file for debugging
+                try:
+                    with open(os.path.join(root, "crash.log"), "a") as f:
+                        f.write(f"[{datetime.now(timezone.utc).isoformat()}] {text}\n")
+                except: pass
 
         threading.Thread(target=relay, args=(proc.stdout, on_stdout), daemon=True).start()
         threading.Thread(target=relay, args=(proc.stderr, on_stderr), daemon=True).start()
