@@ -48,7 +48,7 @@ def _check_syntax(path):
         raise ValueError(f"syntax error in {path} line {e.lineno}: {e.msg}. File reverted.")
 
 def _commit(msg):
-    subprocess.run(f'git add -A && git commit -m {json.dumps(msg)} -q',
+    subprocess.run(f'git add -A -- . ":!transcript.log" ":!crash.log" && git commit -m {json.dumps(msg)} -q',
                    shell=True, capture_output=True, cwd=ROOT)
 
 # --- Registry ---

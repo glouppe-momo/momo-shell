@@ -478,6 +478,8 @@ def main(scr):
                     out("  still broken after rollback, trying init", style="dim")
                     subprocess.run(["git", "checkout", "$(git rev-list --max-parents=0 HEAD)", "--", "core.py"],
                                   shell=True, cwd=root, capture_output=True)
+                # Fix ownership after git operations (run as root)
+                subprocess.run(["chown", "-R", "agent:agent", root], capture_output=True)
                 continue
 
             code = run_agent()
@@ -492,6 +494,7 @@ def main(scr):
             if last_commit_age() < CRASH_WINDOW:
                 out("  crash after self-edit, rolling back", style="dim")
                 subprocess.run(["git", "reset", "--hard", "HEAD~1"], cwd=root, capture_output=True)
+                subprocess.run(["chown", "-R", "agent:agent", root], capture_output=True)
             out(f"  crashed (exit {code}), restarting in 2s", style="dim")
             time.sleep(2)
     threading.Thread(target=agent_loop, daemon=True).start()

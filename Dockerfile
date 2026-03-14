@@ -15,7 +15,7 @@ RUN python3 -c "import py_compile; py_compile.compile('/usr/local/lib/python3.12
     && rm /usr/local/lib/python3.12/voice.py
 
 # Seed files (copied to /agent on first run)
-COPY core.py tools.py dna.md /seed/
+COPY core.py tools.py dna.md .gitignore /seed/
 
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
