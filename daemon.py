@@ -67,10 +67,11 @@ def main(scr):
 
         def relay(stream, handler):
             try:
-                for line in stream: touch(); handler(line.decode().rstrip())
+                for line in stream: handler(line.decode().rstrip())
             except: pass
 
         def on_stdout(text):
+            touch()  # only real output counts as activity
             out(text)
 
         def on_stderr(text):
