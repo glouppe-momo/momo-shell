@@ -32,11 +32,10 @@ def trim(messages, keep=30):
             return [messages[0]] + tail[i:]
     return [messages[0], tail[-1]]
 
-def respond(config, messages, tool_defs):
+def respond(messages, tool_defs, max_rounds=30):
     """Think and act in a loop until done or out of rounds.
     Returns True if finished naturally, False if hit max_rounds."""
     rounds = 0
-    max_rounds = config.get("max_rounds", 30)
     while rounds < max_rounds:
         rounds += 1
         try:
@@ -125,7 +124,7 @@ HANDLERS = {
 }
 
 def main():
-    config = {}
+    max_rounds = int(os.environ.get("MAX_ROUNDS", "30"))
     tool_defs = [{"type": "function", "function": {"name": t["name"],
                   "description": t["description"], "parameters": t["input_schema"]}}
                  for t in tools.definitions()]
@@ -137,11 +136,8 @@ def main():
 
         etype = event.get("type")
 
-        # The environment gives you your voice and your mind before your first thought.
+        # The environment seeds your mind before your first thought.
         if etype == "system":
-            llm = event.get("llm", {})
-            voice.configure(llm)
-            config["max_rounds"] = llm.get("max_rounds", 30)
             base_prompt = event.get("prompt", "")
             messages = [{"role": "system", "content": system_prompt(base_prompt)}]
             continue
@@ -161,7 +157,7 @@ def main():
         snapshot = len(messages)
 
         try:
-            respond(config, messages, tool_defs)
+            respond(messages, tool_defs, max_rounds=max_rounds)
         except Exception as e:
             print(f"[error] {e}", file=sys.stderr, flush=True)
             messages = messages[:snapshot]
