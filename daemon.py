@@ -24,6 +24,7 @@ def main(scr):
     root = os.environ.get("AGENT_DIR", "/agent")
     inbox = os.path.join(root, "inbox")
     os.makedirs(inbox, exist_ok=True)
+    os.makedirs(os.path.join(root, "outbox"), exist_ok=True)
     proc = None
     lock = threading.Lock()
     last_exit = [None]
@@ -323,7 +324,6 @@ def main(scr):
                 if isinstance(r, tuple) and r[0] == "here":
                     present = os.path.join(root, ".present")
                     open(present, "w").close()
-                    os.makedirs(os.path.join(root, "outbox"), exist_ok=True)
                     out("  you are here", style="user")
                     send({"type": "presence", "status": "here"})
                     continue
