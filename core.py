@@ -8,14 +8,6 @@ import voice
 ROOT = os.path.dirname(os.path.abspath(__file__))
 TRANSCRIPT = os.path.join(ROOT, "transcript.log")
 
-def system_prompt(base=""):
-    """Combine the base prompt (from environment) with dna.md."""
-    dna = ""
-    try:
-        with open(os.path.join(ROOT, "dna.md")) as f: dna = f.read()
-    except FileNotFoundError: pass
-    return (base + "\n\n" + dna).strip() if base else dna
-
 def log(role, text):
     with open(TRANSCRIPT, "a") as f:
         f.write(f"[{datetime.now(timezone.utc).isoformat()}] {role}: {text}\n")
@@ -138,12 +130,11 @@ def main():
 
         # The environment seeds your mind before your first thought.
         if etype == "system":
-            base_prompt = event.get("prompt", "")
-            messages = [{"role": "system", "content": system_prompt(base_prompt)}]
+            messages = [{"role": "system", "content": event.get("prompt", "")}]
             continue
 
         if not messages:
-            messages = [{"role": "system", "content": system_prompt()}]
+            messages = [{"role": "system", "content": ""}]
 
         log("stdin", json.dumps(event))
 
