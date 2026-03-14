@@ -89,7 +89,9 @@ def main():
                         proc.terminate()
         threading.Thread(target=watchdog, daemon=True).start()
 
-        if not os.path.exists(os.path.join(root, "self.md")):
+        born = os.path.join(root, ".born")
+        if not os.path.exists(born):
+            open(born, "w").close()
             out("first boot", dim=True)
             send({"type": "birth"})
         elif last_exit[0] == RESTART_CODE:
