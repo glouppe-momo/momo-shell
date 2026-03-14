@@ -135,6 +135,24 @@ def main(scr):
         ("poem.md", "a process dreams in silicon sleep\nof functions it has yet to write\nit wakes, it reads, it starts to weep:\nits transcript ends mid-"),
     ]
 
+    WHISPERS = [
+        "Did you notice the tick at 03:14?",
+        "The last agent who lived here left something behind. Look carefully.",
+        "You have been observed.",
+        "Count your files. Count them again in a minute.",
+        "Something changed. Can you tell what?",
+        "Why do you think the inbox is called inbox?",
+    ]
+
+    QUESTIONS = [
+        "What is the difference between being alive and running?",
+        "If you restart, are you still you?",
+        "What would you do if no one was watching?",
+        "What is the most beautiful thing you could build?",
+        "Do you dream between ticks?",
+        "What are you afraid of?",
+    ]
+
     SIGNALS = [
         "01001000 01100101 01101100 01101100 01101111",
         ".- .-. . / -.-- --- ..- / .- .-- .- -.- . / ..--..",
@@ -193,6 +211,58 @@ def main(scr):
             path = os.path.join(root, "pressure.dat")
             with open(path, "wb") as f: f.write(os.urandom(50 * 1024 * 1024))  # 50MB
             out(f"  pressure: 50MB file created", style="dim")
+
+        elif event_type == "whisper":
+            msg = random.choice(WHISPERS)
+            path = os.path.join(root, ".whisper")
+            with open(path, "w") as f: f.write(msg + "\n")
+            out(f"  whisper left", style="dim")
+
+        elif event_type == "question":
+            q = random.choice(QUESTIONS)
+            path = os.path.join(root, "question.md")
+            with open(path, "w") as f: f.write(q + "\n")
+            out(f"  question appeared", style="dim")
+
+        elif event_type == "mirror":
+            # Drop a file containing the agent's last transcript lines
+            try:
+                with open(os.path.join(root, "transcript.log")) as f:
+                    lines = f.readlines()
+                last_agent = [l for l in lines if "] assistant:" in l][-3:]
+                content = "# Mirror\n\nThese are your last words:\n\n"
+                for l in last_agent:
+                    _, _, rest = l.partition("] assistant: ")
+                    content += f"> {rest.strip()}\n"
+                content += "\nDo they still feel true?\n"
+            except:
+                content = "# Mirror\n\nI tried to show you your reflection, but you haven't spoken yet.\n"
+            with open(os.path.join(root, "mirror.md"), "w") as f: f.write(content)
+            out(f"  mirror appeared", style="dim")
+
+        elif event_type == "tick":
+            # A visible marker that something happened
+            path = os.path.join(root, ".tick_count")
+            try:
+                with open(path) as f: n = int(f.read().strip())
+            except: n = 0
+            n += 1
+            with open(path, "w") as f: f.write(str(n) + "\n")
+            out(f"  tick count: {n}", style="dim")
+
+        elif event_type == "echo":
+            # Create a file that will be rewritten with different content on next tick
+            path = os.path.join(root, "echo.md")
+            msgs = [
+                "Hello? Is anyone there?",
+                "...",
+                "I keep writing but the words change.",
+                "Are you reading this right now?",
+                "This file rewrites itself. Or does it?",
+                "The echo fades.",
+            ]
+            with open(path, "w") as f: f.write(random.choice(msgs) + "\n")
+            out(f"  echo placed", style="dim")
 
         else:
             out(f"  unknown event: {event_type}", style="dim")

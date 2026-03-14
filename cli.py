@@ -259,7 +259,8 @@ def handle_command(cmd):
         return "quit"
     elif verb.startswith("/event"):
         if not arg:
-            add_line("  events: stranger, gift, quake, phantom, signal, pressure", style="dim")
+            add_line("  events: stranger, gift, quake, phantom, signal, pressure,", style="dim")
+            add_line("          whisper, question, mirror, tick, echo", style="dim")
             return True
         return ("event", arg)
     elif verb == "/say":
