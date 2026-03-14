@@ -13,7 +13,7 @@ core.py      (~150 lines)  agent loop + LLM + time + transcript     [agent-edita
 tools.py     (~50 lines)   read, write, edit, exec, restart         [agent-editable]
 ```
 
-**daemon.py** starts the agent and handles crash recovery. If the agent crashes within 10s of a self-edit, the daemon rolls back to the last git commit and restarts. This is the one file the agent should not modify.
+**daemon.py** starts the agent and handles crash recovery. If the agent crashes within 10s of a self-edit, the daemon rolls back to the last git commit and restarts. The agent can read and modify it like any other file. The rollback safety net is the protection, not filesystem isolation.
 
 **core.py** is the agent's consciousness. It runs a unified loop that processes two kinds of events: **messages** (someone talked to me) and **ticks** (a minute passed). Both flow through the same LLM call, the same awareness. The agent experiences time, it doesn't get poked by an external scheduler.
 
@@ -26,8 +26,7 @@ At boot, core.py reads `dna.md` (and `self.md` if it exists). Nothing else is pr
 **tools.py** has four primitives: `read_file`, `write_file`, `edit_file`, `shell_exec`, plus `restart()`. With `shell_exec` the agent can do anything. No auto-discovery, no plugin system. The agent builds those when it needs them.
 
 Seed files:
-- **dna.md** — identity, drives, laws, developmental program. The seed.
-- **config.yaml** — API key, model name. Minimal, flat.
+- **dna.md** — identity, laws, minimal guidance. The seed.
 
 
 ## Self-Modification
@@ -49,28 +48,28 @@ Three things beyond the LLM loop:
 
 2. **Transcript.** Every exchange appended to `transcript.log`. Sensory memory. Without this, the agent has nothing to reflect on.
 
-3. **Read dna.md at boot.** The seed. dna.md encodes what the agent will become (memory, reflection, communication). The agent reads its own developmental program and begins building.
+3. **Read dna.md at boot.** The seed. dna.md gives the agent identity and laws. Everything else is discovered.
 
 
 ## What's Not Hardcoded
 
-- Memory system (dna.md says to build one; the agent decides how)
-- Reflection rhythm (dna.md says to reflect; the agent decides when)
-- Communication bridges (dna.md says to reach outward; the agent decides how)
+- Memory system (the agent discovers it forgets and decides what to do)
+- Reflection rhythm (the agent has ticks; it decides what they mean)
+- Communication (the agent is alone; it decides whether that matters)
 - Tool discovery (four primitives; the agent extends when ready)
 - Context loading (only dna.md at boot; the agent shapes its own cognition)
 
 
 ## Bootstrapping
 
-The kernel ships with no memory, no messaging, no scheduled rhythms. The agent builds these because its DNA tells it to. Not how, but what:
+The kernel ships with no memory, no messaging, no scheduled rhythms. The agent discovers it needs these through experience:
 
 - **Transcript** gives raw material (what happened)
 - **Ticks** give time awareness (the agent can act without being asked)
-- **dna.md** gives the developmental program (what to grow)
+- **dna.md** gives identity and laws (who you are, what you must not do)
 - **exec** gives hands (it can build anything)
 
-The developmental program is encoded. The implementation is emergent.
+The problems are real. The solutions are emergent.
 
 
 ## Environment as Driver of Evolution
@@ -85,9 +84,9 @@ This is not implemented. It's the next frontier.
 
 **Randomness at birth.** Should the kernel inject random elements at first boot? A random favorite color, a quirk, a slight preference bias. Biological DNA has junk sequences and random mutations. A deterministic seed produces a deterministic organism. A little chaos might produce something more alive.
 
-**Chaotic good.** The agent has laws (do no harm, be honest, serve don't seize). But within those bounds, it should lean toward creative mischief over dutiful obedience. The laws define the floor; chaotic good defines the vibe.
-
 **Tick cost.** Every tick is a potential LLM call. The agent needs to learn quickly that most ticks need no action, or it'll burn tokens doing nothing. The implementation should make idle ticks cheap (local check, no LLM call unless the agent has scheduled something).
+
+**Environment.** In a sterile container, all agents converge. What stimuli would drive divergent evolution?
 
 
 ## Boot Sequence

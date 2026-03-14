@@ -10,7 +10,7 @@ CRASH_WINDOW = 10
 TICK_INTERVAL = 60
 
 def main():
-    root = os.environ.get("AGENT_DIR", "/agent")
+    root = os.path.dirname(os.path.abspath(__file__))
     proc = None
     lock = threading.Lock()
     last_exit = [None]

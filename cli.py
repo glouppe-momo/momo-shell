@@ -2,7 +2,7 @@
 """Interactive CLI for the human. Not part of the agent's world."""
 import os, readline, subprocess, sys
 
-ROOT = os.environ.get("AGENT_DIR", "/agent")
+ROOT = os.path.dirname(os.path.abspath(__file__))
 
 DIM, RESET, BOLD, CYAN, RED = "\033[2m", "\033[0m", "\033[1m", "\033[36m", "\033[31m"
 
