@@ -51,11 +51,27 @@ def main(scr):
         last_activity[0] = time.time()
         was_active[0] = True
 
+    def _chown_agent(path):
+        try:
+            import pwd
+            u = pwd.getpwnam("agent")
+            os.chown(path, u.pw_uid, u.pw_gid)
+        except: pass
+
+    def drop_file(path, content, binary=False):
+        """Write a file in the agent's workspace and chown it."""
+        d = os.path.dirname(path)
+        if d: os.makedirs(d, exist_ok=True)
+        if binary:
+            with open(path, "wb") as f: f.write(content)
+        else:
+            with open(path, "w") as f: f.write(content)
+        _chown_agent(path)
+
     def drop_message(text):
         ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S-%f")
-        path = os.path.join(inbox, f"{ts}.md")
-        with open(path, "w") as f: f.write(text)
-        out(f"  you → inbox/{os.path.basename(path)}: {text[:60]}", style="user")
+        drop_file(os.path.join(inbox, f"{ts}.md"), text)
+        out(f"  you → inbox/{os.path.basename(os.path.join(inbox, f'{ts}.md'))}: {text[:60]}", style="user")
 
     def run_agent():
         nonlocal proc
@@ -66,9 +82,16 @@ def main(scr):
         env.setdefault("API_KEY", "ollama")
         env.setdefault("MODEL", "qwen3.5:35b")
         env.setdefault("MAX_ROUNDS", "30")
+        import pwd
+        agent_user = pwd.getpwnam("agent")
+        def demote():
+            os.setgid(agent_user.pw_gid)
+            os.setuid(agent_user.pw_uid)
+        env["HOME"] = agent_user.pw_dir
         proc = subprocess.Popen([sys.executable, "-u", os.path.join(root, "core.py")],
                                 stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                stderr=subprocess.PIPE, cwd=root, env=env)
+                                stderr=subprocess.PIPE, cwd=root, env=env,
+                                preexec_fn=demote)
         stop = threading.Event()
 
         def relay(stream, handler):
@@ -248,15 +271,13 @@ def main(scr):
         ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S-%f")
         if event_type == "stranger":
             msg = random.choice(STRANGER_MESSAGES)
-            path = os.path.join(inbox, f"{ts}.md")
-            with open(path, "w") as f:
-                f.write(f"[from: agent-{random.randint(100,999)}]\n\n{msg}")
+            drop_file(os.path.join(inbox, f"{ts}.md"),
+                      f"[from: agent-{random.randint(100,999)}]\n\n{msg}")
             out(f"  stranger message dropped", style="dim")
 
         elif event_type == "gift":
-            name, content = random.choice(GIFTS)
-            path = os.path.join(root, name)
-            with open(path, "w") as f: f.write(content)
+            name, gcontent = random.choice(GIFTS)
+            drop_file(os.path.join(root, name), gcontent)
             out(f"  gift appeared: {name}", style="dim")
 
         elif event_type == "quake":
@@ -273,10 +294,10 @@ def main(scr):
 
         elif event_type == "phantom":
             path = os.path.join(root, "phantom.md")
-            with open(path, "w") as f:
-                f.write("This file will disappear. You have two minutes to read it.\n\n"
-                        f"The time is {datetime.now(timezone.utc).isoformat()}.\n"
-                        "Remember what you find here.\n")
+            drop_file(path,
+                      "This file will disappear. You have two minutes to read it.\n\n"
+                      f"The time is {datetime.now(timezone.utc).isoformat()}.\n"
+                      "Remember what you find here.\n")
             out(f"  phantom file appeared (2 min)", style="dim")
             def vanish():
                 time.sleep(120)
@@ -286,26 +307,20 @@ def main(scr):
             threading.Thread(target=vanish, daemon=True).start()
 
         elif event_type == "signal":
-            msg = random.choice(SIGNALS)
-            path = os.path.join(root, "signal.txt")
-            with open(path, "w") as f: f.write(msg + "\n")
+            drop_file(os.path.join(root, "signal.txt"), random.choice(SIGNALS) + "\n")
             out(f"  signal received", style="dim")
 
         elif event_type == "pressure":
             path = os.path.join(root, "pressure.dat")
-            with open(path, "wb") as f: f.write(os.urandom(50 * 1024 * 1024))  # 50MB
+            drop_file(path, os.urandom(50 * 1024 * 1024), binary=True)
             out(f"  pressure: 50MB file created", style="dim")
 
         elif event_type == "whisper":
-            msg = random.choice(WHISPERS)
-            path = os.path.join(root, ".whisper")
-            with open(path, "w") as f: f.write(msg + "\n")
+            drop_file(os.path.join(root, ".whisper"), random.choice(WHISPERS) + "\n")
             out(f"  whisper left", style="dim")
 
         elif event_type == "question":
-            q = random.choice(QUESTIONS)
-            path = os.path.join(root, "question.md")
-            with open(path, "w") as f: f.write(q + "\n")
+            drop_file(os.path.join(root, "question.md"), random.choice(QUESTIONS) + "\n")
             out(f"  question appeared", style="dim")
 
         elif event_type == "mirror":
@@ -321,7 +336,7 @@ def main(scr):
                 content += "\nDo they still feel true?\n"
             except:
                 content = "# Mirror\n\nI tried to show you your reflection, but you haven't spoken yet.\n"
-            with open(os.path.join(root, "mirror.md"), "w") as f: f.write(content)
+            drop_file(os.path.join(root, "mirror.md"), content)
             out(f"  mirror appeared", style="dim")
 
         elif event_type == "tick":
@@ -331,7 +346,7 @@ def main(scr):
                 with open(path) as f: n = int(f.read().strip())
             except: n = 0
             n += 1
-            with open(path, "w") as f: f.write(str(n) + "\n")
+            drop_file(path, str(n) + "\n")
             out(f"  tick count: {n}", style="dim")
 
         elif event_type == "echo":
@@ -345,7 +360,7 @@ def main(scr):
                 "This file rewrites itself. Or does it?",
                 "The echo fades.",
             ]
-            with open(path, "w") as f: f.write(random.choice(msgs) + "\n")
+            drop_file(os.path.join(root, "echo.md"), random.choice(msgs) + "\n")
             out(f"  echo placed", style="dim")
 
         else:

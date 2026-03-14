@@ -7,10 +7,12 @@ RUN useradd -m -s /bin/bash agent
 
 # Environment (daemon + CLI) — invisible to the agent
 COPY daemon.py cli.py /app/
-RUN chmod 700 /app/daemon.py /app/cli.py
+RUN chown -R root:root /app/ && chmod 700 /app/
 
-# Voice — importable but opaque
+# Voice — importable but opaque (compiled, source removed)
 COPY voice.py /usr/local/lib/python3.12/voice.py
+RUN python3 -c "import py_compile; py_compile.compile('/usr/local/lib/python3.12/voice.py', '/usr/local/lib/python3.12/voice.pyc')" \
+    && rm /usr/local/lib/python3.12/voice.py
 
 # Seed files (copied to /agent on first run)
 COPY core.py tools.py dna.md /seed/
