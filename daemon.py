@@ -329,14 +329,14 @@ def main(scr):
                     present = os.path.join(root, ".present")
                     open(present, "w").close()
                     out("  you are here", style="user")
-                    send({"type": "presence", "status": "here"})
+                    send({"type": "arrived", "content": "Someone is here. They can see you and talk to you."})
                     continue
                 if isinstance(r, tuple) and r[0] == "away":
                     present = os.path.join(root, ".present")
                     try: os.remove(present)
                     except FileNotFoundError: pass
                     out("  you are away", style="user")
-                    send({"type": "presence", "status": "away"})
+                    send({"type": "departed", "content": "They left. You are alone now."})
                     continue
                 if isinstance(r, tuple) and r[0] == "reboot":
                     if proc and proc.poll() is None:

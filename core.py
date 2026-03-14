@@ -109,8 +109,13 @@ def on_tick(event):
     # Return a string to think and act. Return None to stay silent.
     return None
 
-def on_presence(event):
-    # TODO: something changed in your environment.
+def on_arrived(event):
+    # TODO: someone just arrived. They can see you.
+    # Return a string to think and act. Return None to stay silent.
+    return None
+
+def on_departed(event):
+    # TODO: they left. You are alone now.
     # Return a string to think and act. Return None to stay silent.
     return None
 
@@ -126,7 +131,8 @@ HANDLERS = {
     "idle": on_idle,
     "crash": on_crash,
     "tick": on_tick,
-    "presence": on_presence,
+    "arrived": on_arrived,
+    "departed": on_departed,
     "say": on_say,
 }
 
