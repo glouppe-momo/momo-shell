@@ -25,6 +25,13 @@ def main(scr):
     inbox = os.path.join(root, "inbox")
     os.makedirs(inbox, exist_ok=True)
     os.makedirs(os.path.join(root, "outbox"), exist_ok=True)
+    # Ensure agent user owns the workspace dirs
+    try:
+        import pwd
+        u = pwd.getpwnam("agent")
+        for d in [inbox, os.path.join(root, "outbox")]:
+            os.chown(d, u.pw_uid, u.pw_gid)
+    except: pass
     proc = None
     lock = threading.Lock()
     last_exit = [None]

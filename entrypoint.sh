@@ -5,7 +5,7 @@ if [ ! -f /agent/core.py ]; then
     cp /seed/core.py /seed/tools.py /seed/dna.md /agent/
 fi
 
-# Agent owns its workspace
+# Agent owns its workspace (every boot, in case daemon created files as root)
 chown -R agent:agent /agent
 
 # Init git if needed (as agent user)
