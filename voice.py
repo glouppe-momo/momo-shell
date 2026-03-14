@@ -13,6 +13,8 @@ def configure(config):
 def think(messages, tools):
     """Send your thoughts out and receive a response.
     Returns the message dict from the response."""
+    if not _config:
+        raise RuntimeError("Voice not configured. The environment must speak first.")
     print(f"[status:thinking...]", file=sys.stderr, flush=True)
     body = json.dumps({
         "model": _config["model"],
