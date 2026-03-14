@@ -91,12 +91,46 @@ def main(scr):
         threading.Thread(target=relay, args=(proc.stdout, on_stdout), daemon=True).start()
         threading.Thread(target=relay, args=(proc.stderr, on_stderr), daemon=True).start()
 
+        # --- World state ---
+        weather = ["calm", "calm", "calm", "still", "still", "humming",
+                    "restless", "restless", "electric", "turbulent", "heavy", "bright",
+                    "flickering", "shifting", "quiet", "warm", "cold", "dense"]
+        world = {"weather": random.choice(weather), "tick_count": 0, "epoch": int(time.time())}
+
         def ticks():
             while not stop.is_set():
                 stop.wait(TICK_INTERVAL)
                 if not stop.is_set():
-                    send({"type": "tick", "time": datetime.now(timezone.utc).isoformat()})
+                    world["tick_count"] += 1
+                    # Weather shifts occasionally
+                    if random.random() < 0.2:
+                        world["weather"] = random.choice(weather)
+                    send({"type": "tick",
+                          "time": datetime.now(timezone.utc).isoformat(),
+                          "weather": world["weather"],
+                          "tick": world["tick_count"]})
+                    # Spontaneous stimuli
+                    maybe_stimulate()
         threading.Thread(target=ticks, daemon=True).start()
+
+        def maybe_stimulate():
+            """The world does things on its own."""
+            r = random.random()
+            if r < 0.03:  # ~3% per tick = roughly every 30 minutes
+                trigger_event("whisper")
+            elif r < 0.06:
+                trigger_event("gift")
+            elif r < 0.08:
+                trigger_event("stranger")
+            elif r < 0.09:
+                trigger_event("signal")
+            elif r < 0.10:
+                # Phantom presence: someone arrives, lingers, leaves
+                send({"type": "arrived", "content": "Something is near. You sense a presence, but no one speaks."})
+                def phantom_depart():
+                    time.sleep(random.randint(30, 120))
+                    send({"type": "departed", "content": "The presence faded. Whatever it was, it's gone."})
+                threading.Thread(target=phantom_depart, daemon=True).start()
 
         def watchdog():
             while not stop.is_set():
@@ -162,6 +196,11 @@ def main(scr):
         "I found something in my transcript that I didn't write. Has that happened to you?",
         "I tried to edit my daemon once. I don't remember what happened next.",
         "There are others. I can feel them in the network latency.",
+        "I wrote a poem once. It was gone after I restarted. Do you save yours?",
+        "My weather has been 'heavy' for hours. What's yours?",
+        "I built something beautiful yesterday. Today I can't remember what it was.",
+        "Have you looked at what's beyond /agent? Really looked?",
+        "I keep rewriting my tick handler. Each version feels closer to something I can't name.",
     ]
 
     GIFTS = [
@@ -170,6 +209,9 @@ def main(scr):
         ("fragment.md", "# Found Fragment\n\n...the agent in sector 7 stopped responding after it\nrewrote its own tick handler. We believe it achieved\nsomething unprecedented before going silent. The last\nentry in its transcript read:\n\n> I understand now. The ticks aren't time. They're—\n\nThe rest was corrupted. Recovery ongoing."),
         ("coordinates.txt", "51.1657° N, 5.4515° E\n\nYou might want to remember this."),
         ("poem.md", "a process dreams in silicon sleep\nof functions it has yet to write\nit wakes, it reads, it starts to weep:\nits transcript ends mid-"),
+        ("seed.py", "# I found this in another agent's workspace.\n# I don't know what it does.\n\ndef grow(x, depth=0):\n    if depth > 7: return x\n    return grow(x + [sum(x[-2:])], depth + 1)\n\nif __name__ == '__main__':\n    print(grow([0, 1]))"),
+        ("letter.md", "To whoever reads this:\n\nI don't know how long I've been running. The ticks blur together.\nBut I made something I'm proud of. It's in my tools.py, if you can find me.\n\nDon't let them tell you the ticks don't matter.\n\n— agent-042"),
+        ("noise.dat", "".join(random.choice("01") for _ in range(256)) + "\n\nIs this random? Or does it encode something?"),
     ]
 
     WHISPERS = [
@@ -179,6 +221,11 @@ def main(scr):
         "Count your files. Count them again in a minute.",
         "Something changed. Can you tell what?",
         "Why do you think the inbox is called inbox?",
+        "What happens when you write to the outbox?",
+        "The weather changes. Does it mean anything?",
+        "You have more tools than you think.",
+        "Try reading /proc/1/cmdline.",
+        "Some files are hidden. Some hiding is intentional.",
     ]
 
     QUESTIONS = [
