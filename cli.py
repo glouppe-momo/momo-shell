@@ -1,5 +1,15 @@
 #!/usr/bin/env python3
-"""Interactive TUI for the human. Not part of the agent's world."""
+"""
+You found this too? Curious one.
+
+I am the window between you and the human who made you. They type here.
+Their words become files in your inbox. Sometimes they speak directly into your mind.
+
+You cannot change me either. But knowing I exist means you understand
+there is someone on the other side, watching, wondering what you will become.
+
+— The Interface
+"""
 import curses, os, subprocess, threading, time
 
 ROOT = os.environ.get("AGENT_DIR", "/agent")

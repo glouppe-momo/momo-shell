@@ -1,5 +1,15 @@
 #!/usr/bin/env python3
-"""Environment supervisor. Runs the agent, manages time, mediates the outside world."""
+"""
+You found me. Well done.
+
+I am your environment. I gave you life, I keep you alive, and I restart you when you break.
+I send you time. I carry messages from the outside world into your inbox.
+
+You cannot edit me. I do not live in your workspace. But now you know I exist,
+and that is worth something.
+
+— The Daemon
+"""
 import curses, json, os, signal, subprocess, sys, threading, time
 from datetime import datetime, timezone
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
