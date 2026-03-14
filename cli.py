@@ -15,6 +15,7 @@ BANNER = f"""
 
 HELP = f"""
 {DIM}╭─ commands ───────────────────────────╮{RESET}
+{DIM}│{RESET}  {BOLD}/say{RESET} <text>     send directly to stdin {DIM}│{RESET}
 {DIM}│{RESET}  {BOLD}/files{RESET} [path]   list workspace files  {DIM}│{RESET}
 {DIM}│{RESET}  {BOLD}/cat{RESET} <file>     show file contents    {DIM}│{RESET}
 {DIM}│{RESET}  {BOLD}/git{RESET} [args]     run git command       {DIM}│{RESET}
@@ -23,6 +24,9 @@ HELP = f"""
 {DIM}│{RESET}  {BOLD}/diff{RESET}           changes since init    {DIM}│{RESET}
 {DIM}│{RESET}  {BOLD}/help{RESET}           this help             {DIM}│{RESET}
 {DIM}│{RESET}  {BOLD}/quit{RESET}           stop the agent        {DIM}│{RESET}
+{DIM}│{RESET}                                       {DIM}│{RESET}
+{DIM}│{RESET}  {DIM}bare text → drops file in inbox{RESET}     {DIM}│{RESET}
+{DIM}│{RESET}  {DIM}/say → injects message into stdin{RESET}   {DIM}│{RESET}
 {DIM}╰──────────────────────────────────────╯{RESET}
 """
 
@@ -41,6 +45,9 @@ def handle_command(cmd):
         print(HELP)
     elif verb == "/quit":
         return "quit"
+    elif verb == "/say":
+        if not arg: print(f"  {DIM}usage: /say <message>{RESET}"); return True
+        return ("say", arg)
     elif verb == "/files":
         path = os.path.join(ROOT, arg) if arg else ROOT
         try:
@@ -63,7 +70,7 @@ def handle_command(cmd):
             with open(os.path.join(ROOT, "transcript.log")) as f: lines = f.readlines()
             for line in lines[-n:]:
                 line = line.rstrip()
-                if "] user:" in line:
+                if "] user:" in line or "] system:" in line:
                     ts, _, rest = line.partition("] ")
                     print(f"  {DIM}{ts}]{RESET} {BOLD}{rest}{RESET}")
                 elif "] assistant:" in line:

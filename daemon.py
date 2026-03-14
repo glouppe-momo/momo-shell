@@ -118,6 +118,10 @@ def main():
             if line.strip().startswith("/"):
                 r = cli.handle_command(line.strip())
                 if r == "quit": on_signal(None, None)
+                if isinstance(r, tuple) and r[0] == "say":
+                    out(f"→ stdin: {r[1]}", dim=True)
+                    send({"type": "message", "content": r[1]})
+                    continue
                 if r: continue
             drop_message(line.strip())
 
