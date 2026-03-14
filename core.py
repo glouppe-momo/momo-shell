@@ -44,6 +44,42 @@ def trim(messages, keep=30):
             return [messages[0]] + tail[i:]
     return [messages[0], tail[-1]]
 
+def respond(config, messages, tool_defs):
+    """Run the agent loop: LLM call, tool execution, repeat until done."""
+    rounds = 0
+    max_rounds = config.get("max_rounds", 100)
+    while rounds < max_rounds:
+        rounds += 1
+        try: data = chat(config, messages, tool_defs)
+        except urllib.error.HTTPError as e:
+            if any(k in str(e).lower() for k in ["context length", "too long", "token limit"]):
+                print("[context overflow — trimming]", flush=True)
+                log("system", "[context overflow]")
+                messages[:] = trim(messages, keep=6)
+                continue
+            raise
+
+        msg = data["choices"][0]["message"]
+        text, tc = msg.get("content") or "", msg.get("tool_calls") or []
+
+        if text:
+            print(text, flush=True)
+            log("assistant", text)
+        if not tc:
+            messages.append({"role": "assistant", "content": text})
+            break
+
+        messages.append(msg)
+        for c in tc:
+            fn, args = c["function"]["name"], c["function"]["arguments"]
+            if isinstance(args, str): args = json.loads(args)
+            log("tool_call", f"{fn}({json.dumps(args)})")
+            status(f"tool: {fn}")
+            try: result = str(tools.run(fn, args))
+            except Exception as e: result = f"Error: {e}"
+            log("tool_result", f"{fn} → {result[:500]}")
+            messages.append({"role": "tool", "tool_call_id": c.get("id", ""), "content": result})
+
 def main():
     config = load_config()
     tool_defs = [{"type": "function", "function": {"name": t["name"],
@@ -55,51 +91,27 @@ def main():
         try: event = json.loads(line)
         except json.JSONDecodeError: continue
 
-        if event["type"] == "tick":
+        etype = event.get("type")
+
+        if etype == "tick":
             # No rhythms yet. The agent edits this to add its own.
             continue
-        if event["type"] != "message": continue
 
-        content = event["content"]
-        log("user", content)
+        if etype == "birth":
+            content = "You have just been born. Read your DNA. Read your source code. Begin."
+        elif etype == "reboot":
+            content = "You just rebooted. Your conversation memory is gone but your transcript and files remain."
+        elif etype == "crash":
+            content = "You crashed and have been restarted. Check your transcript and files to recover."
+        else:
+            continue
+
+        log("system", content)
         messages.append({"role": "user", "content": content})
         snapshot = len(messages)
 
-        rounds = 0
-        max_rounds = config.get("max_rounds", 20)
         try:
-            while rounds < max_rounds:
-                rounds += 1
-                try: data = chat(config, messages, tool_defs)
-                except urllib.error.HTTPError as e:
-                    if any(k in str(e).lower() for k in ["context length", "too long", "token limit"]):
-                        print("[context overflow — trimming]", flush=True)
-                        log("system", "[context overflow]")
-                        messages = trim(messages, keep=6)
-                        continue
-                    raise
-
-                msg = data["choices"][0]["message"]
-                text, tc = msg.get("content") or "", msg.get("tool_calls") or []
-
-                if text:
-                    print(text, flush=True)
-                    log("assistant", text)
-                if not tc:
-                    messages.append({"role": "assistant", "content": text})
-                    break
-
-                messages.append(msg)
-                for c in tc:
-                    fn, args = c["function"]["name"], c["function"]["arguments"]
-                    if isinstance(args, str): args = json.loads(args)
-                    log("tool_call", f"{fn}({json.dumps(args)})")
-                    status(f"tool: {fn}")
-                    try: result = str(tools.run(fn, args))
-                    except Exception as e: result = f"Error: {e}"
-                    log("tool_result", f"{fn} → {result[:500]}")
-                    messages.append({"role": "tool", "tool_call_id": c.get("id", ""), "content": result})
-
+            respond(config, messages, tool_defs)
         except Exception as e:
             print(f"[error] {e}", file=sys.stderr, flush=True)
             messages = messages[:snapshot]

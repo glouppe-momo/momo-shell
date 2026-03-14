@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Supervisor. Sacred. Do not modify."""
+"""Environment supervisor. Runs the agent, manages time, mediates the outside world."""
 import json, os, signal, subprocess, sys, threading, time
 from datetime import datetime, timezone
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -10,7 +10,9 @@ CRASH_WINDOW = 10
 TICK_INTERVAL = 60
 
 def main():
-    root = os.path.dirname(os.path.abspath(__file__))
+    root = os.environ.get("AGENT_DIR", "/agent")
+    inbox = os.path.join(root, "inbox")
+    os.makedirs(inbox, exist_ok=True)
     proc = None
     lock = threading.Lock()
     last_exit = [None]
@@ -30,6 +32,13 @@ def main():
         with lock:
             text = f"  {cli.DIM}{text}{cli.RESET}" if dim else text
             sys.stdout.write(f"\r\033[K{text}\n"); sys.stdout.flush()
+
+    def drop_message(text):
+        """Drop a message file into the agent's inbox."""
+        ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S-%f")
+        path = os.path.join(inbox, f"{ts}.md")
+        with open(path, "w") as f: f.write(text)
+        out(f"message dropped → inbox/{os.path.basename(path)}", dim=True)
 
     def run_agent():
         nonlocal proc
@@ -61,13 +70,13 @@ def main():
 
         if not os.path.exists(os.path.join(root, "self.md")):
             out("first boot", dim=True)
-            send({"type": "message", "content": "You have just been born. Read your DNA. Read your source code. Begin."})
+            send({"type": "birth"})
         elif last_exit[0] == RESTART_CODE:
             out("rebooted", dim=True)
-            send({"type": "message", "content": "You just rebooted. Your conversation memory is gone but your transcript and files remain. Read your transcript to remember what you were doing."})
+            send({"type": "reboot"})
         else:
             out("recovered", dim=True)
-            send({"type": "message", "content": "You crashed and have been restarted. Your conversation memory is gone. Check your transcript and files to recover."})
+            send({"type": "crash"})
 
         proc.wait(); stop.set()
         return proc.returncode
@@ -87,8 +96,7 @@ def main():
                 r = cli.handle_command(line.strip())
                 if r == "quit": on_signal(None, None)
                 if r: continue
-            out("thinking...", dim=True)
-            send({"type": "message", "content": line.strip()})
+            drop_message(line.strip())
 
     cli.banner()
     threading.Thread(target=input_loop, daemon=True).start()
