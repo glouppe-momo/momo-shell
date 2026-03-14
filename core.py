@@ -11,10 +11,7 @@ def load_config():
     path = os.path.join(ROOT, "config.json")
     if os.path.exists(path):
         with open(path) as f: return json.load(f)
-    return {"base_url": os.environ.get("BASE_URL", "http://172.30.0.1:11434/v1"),
-            "api_key": os.environ.get("API_KEY", "ollama"),
-            "model": os.environ.get("MODEL", "qwen3.5:35b"),
-            "max_rounds": int(os.environ.get("MAX_ROUNDS", "30"))}
+    return {}
 
 def system_prompt(base=""):
     """Combine the base prompt (from environment) with dna.md."""
@@ -144,7 +141,6 @@ def main():
     tool_defs = [{"type": "function", "function": {"name": t["name"],
                   "description": t["description"], "parameters": t["input_schema"]}}
                  for t in tools.definitions()]
-    base_prompt = ""
     messages = []
 
     for line in sys.stdin:
@@ -153,9 +149,12 @@ def main():
 
         etype = event.get("type")
 
-        # The environment seeds your mind before your first thought.
-        if etype == "system" and not messages:
-            base_prompt = event.get("content", "")
+        # The environment gives you your voice and your mind before your first thought.
+        if etype == "system":
+            llm = event.get("llm", {})
+            config.update(llm)
+            config.setdefault("max_rounds", 30)
+            base_prompt = event.get("prompt", "")
             messages = [{"role": "system", "content": system_prompt(base_prompt)}]
             continue
 
