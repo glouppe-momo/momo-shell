@@ -8,6 +8,7 @@ import cli
 RESTART_CODE = 42
 CRASH_WINDOW = 10
 TICK_INTERVAL = 60
+IDLE_TIMEOUT = 90  # seconds of silence after activity before restart
 
 def main():
     root = os.environ.get("AGENT_DIR", "/agent")
@@ -16,6 +17,8 @@ def main():
     proc = None
     lock = threading.Lock()
     last_exit = [None]
+    last_activity = [0.0]  # timestamp of last agent output
+    was_active = [False]   # did the agent produce any output this run?
 
     def on_signal(sig, _):
         if proc and proc.poll() is None: proc.terminate()
@@ -33,6 +36,11 @@ def main():
             text = f"  {cli.DIM}{text}{cli.RESET}" if dim else text
             sys.stdout.write(f"\r\033[K{text}\n"); sys.stdout.flush()
 
+    def touch():
+        """Mark agent as active."""
+        last_activity[0] = time.time()
+        was_active[0] = True
+
     def drop_message(text):
         """Drop a message file into the agent's inbox."""
         ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S-%f")
@@ -42,6 +50,8 @@ def main():
 
     def run_agent():
         nonlocal proc
+        was_active[0] = False
+        last_activity[0] = time.time()
         proc = subprocess.Popen([sys.executable, "-u", os.path.join(root, "core.py")],
                                 stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE, cwd=root)
@@ -49,7 +59,7 @@ def main():
 
         def relay(stream, handler):
             try:
-                for line in stream: handler(line.decode().rstrip())
+                for line in stream: touch(); handler(line.decode().rstrip())
             except: pass
 
         def on_stderr(text):
@@ -67,6 +77,17 @@ def main():
                 if not stop.is_set():
                     send({"type": "tick", "time": datetime.now(timezone.utc).isoformat()})
         threading.Thread(target=ticks, daemon=True).start()
+
+        def watchdog():
+            """Kill the agent if it goes idle after being active."""
+            while not stop.is_set():
+                stop.wait(10)
+                if stop.is_set(): break
+                if was_active[0] and (time.time() - last_activity[0]) > IDLE_TIMEOUT:
+                    if proc.poll() is None:
+                        out("idle too long, restarting", dim=True)
+                        proc.terminate()
+        threading.Thread(target=watchdog, daemon=True).start()
 
         if not os.path.exists(os.path.join(root, "self.md")):
             out("first boot", dim=True)

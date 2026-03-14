@@ -81,8 +81,7 @@ def respond(config, messages, tool_defs):
             log("tool_result", f"{fn} → {result[:500]}")
             messages.append({"role": "tool", "tool_call_id": c.get("id", ""), "content": result})
 
-    log("system", "[max rounds reached, restarting]")
-    sys.exit(42)
+    return False
 
 def main():
     config = load_config()
