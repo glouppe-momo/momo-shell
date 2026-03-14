@@ -50,6 +50,9 @@ class TUI:
         return h - 3  # status bar + input line + border
 
     def add_line(self, text, style=None):
+        # Strip control chars that break curses
+        text = ''.join(c if c == '\t' or (ord(c) >= 32 or c == '\n') else '?' for c in str(text))
+        text = text.replace('\t', '    ')
         with self.lock:
             self.lines.append((text, style))
             if self.scroll == 0:
@@ -238,6 +241,34 @@ class TUI:
         self.input_ready.clear()
         return self.input_result
 
+    def reset(self):
+        """Clear screen and output buffer."""
+        with self.lock:
+            self.lines = []
+            self.scroll = 0
+            self.input_buf = ""
+            self.cursor = 0
+        try:
+            self.scr.clear()
+            self.scr.refresh()
+            curses.endwin()
+            self.scr = curses.initscr()
+            curses.noecho()
+            curses.cbreak()
+            self.scr.keypad(True)
+            curses.start_color()
+            curses.use_default_colors()
+            curses.init_pair(1, curses.COLOR_CYAN, -1)
+            curses.init_pair(2, curses.COLOR_BLACK, curses.COLOR_WHITE)
+            curses.init_pair(3, curses.COLOR_YELLOW, -1)
+            curses.init_pair(4, curses.COLOR_GREEN, -1)
+            curses.init_pair(5, curses.COLOR_BLUE, -1)
+            curses.curs_set(1)
+            self.scr.timeout(100)
+        except:
+            pass
+        self.add_line("  cli reset", style="dim")
+
     def stop(self):
         self.running = False
 
@@ -261,6 +292,9 @@ def set_status(text):
 def wait_input():
     if _tui: return _tui.wait_input()
     return input("› ")
+
+def reset():
+    if _tui: _tui.reset()
 
 def stop():
     if _tui: _tui.stop()
@@ -289,6 +323,8 @@ def handle_command(cmd):
         add_line("  all input is via commands", style="dim")
     elif verb == "/quit":
         return "quit"
+    elif verb == "/reset":
+        return ("reset",)
     elif verb == "/verbose":
         return ("verbose",)
     elif verb == "/quiet":

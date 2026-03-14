@@ -318,6 +318,9 @@ def main(scr):
                 if isinstance(r, tuple) and r[0] == "event":
                     trigger_event(r[1].strip().lower())
                     continue
+                if isinstance(r, tuple) and r[0] == "reset":
+                    cli.reset()
+                    continue
                 if isinstance(r, tuple) and r[0] == "verbose":
                     if not verbose[0]:
                         verbose[0] = True
