@@ -89,12 +89,16 @@ def main(scr):
         env.setdefault("API_KEY", "ollama")
         env.setdefault("MODEL", "qwen3.5:35b")
         env.setdefault("MAX_ROUNDS", "30")
-        import pwd
-        agent_user = pwd.getpwnam("agent")
-        def demote():
-            os.setgid(agent_user.pw_gid)
-            os.setuid(agent_user.pw_uid)
-        env["HOME"] = agent_user.pw_dir
+        demote = None
+        try:
+            import pwd
+            agent_user = pwd.getpwnam("agent")
+            def demote():
+                os.setgid(agent_user.pw_gid)
+                os.setuid(agent_user.pw_uid)
+            env["HOME"] = agent_user.pw_dir
+        except (KeyError, ImportError):
+            pass  # no agent user, run as current user
         proc = subprocess.Popen([sys.executable, "-u", os.path.join(root, "core.py")],
                                 stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE, cwd=root, env=env,
