@@ -103,9 +103,9 @@ def main():
         if etype == "birth":
             content = "You have just been born. Read your DNA. Read your source code. Begin."
         elif etype == "reboot":
-            content = "You just rebooted. Your conversation memory is gone but your transcript and files remain."
+            content = "You just rebooted after calling restart(). Your conversation memory is gone but your transcript and files remain. Read the tail of your transcript to remember what you were doing."
         elif etype == "crash":
-            content = "You crashed and have been restarted. Check your transcript and files to recover."
+            content = "You crashed and have been restarted. Your conversation memory is gone but your transcript and files remain. Read the tail of your transcript to understand what happened."
         else:
             continue
 
