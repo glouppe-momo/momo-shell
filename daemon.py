@@ -111,6 +111,7 @@ def main(scr):
             out("  rebooted", style="dim")
             send({"type": "message", "content": "You just rebooted after calling restart(). Your conversation memory is gone but your transcript and files remain. Read the tail of your transcript to remember what you were doing."})
         elif last_exit[0] == "idle":
+            last_exit[0] = None
             out("  woken up", style="dim")
             send({"type": "message", "content": "You went idle and were restarted. You were active, then stopped producing output for too long. Your conversation memory is gone but your transcript and files remain. Read the tail of your transcript to remember what you were doing."})
         else:
@@ -346,7 +347,8 @@ def main(scr):
     def agent_loop():
         while True:
             code = run_agent()
-            last_exit[0] = code
+            if last_exit[0] != "idle":
+                last_exit[0] = code
             if code == RESTART_CODE:
                 out("  restarting...", style="dim")
                 continue
