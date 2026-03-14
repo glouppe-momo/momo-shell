@@ -306,21 +306,21 @@ def handle_command(cmd):
     verb, arg = parts[0].lower(), parts[1] if len(parts) > 1 else ""
 
     if verb == "/help":
-        add_line("─── commands ───", style="dim")
-        add_line("  /mail <text>    drop message in inbox", style="dim")
-        add_line("  /say <text>     send directly to agent stdin", style="dim")
-        add_line("  /event <type>   trigger an environmental event", style="dim")
-        add_line("  /files [path]   list workspace files", style="dim")
-        add_line("  /cat <file>     show file contents", style="dim")
-        add_line("  /git [args]     run git command", style="dim")
-        add_line("  /log [n]        last n transcript lines", style="dim")
-        add_line("  /tree           workspace tree", style="dim")
-        add_line("  /diff           changes since init", style="dim")
-        add_line("  /verbose        live transcript tail", style="dim")
-        add_line("  /quiet          stop live transcript", style="dim")
-        add_line("  /quit           stop the agent", style="dim")
-        add_line("", style="dim")
-        add_line("  all input is via commands", style="dim")
+        add_line("─── commands ───", style="cmd")
+        add_line("  /mail <text>    drop message in inbox", style="cmd")
+        add_line("  /say <text>     send directly to agent stdin", style="cmd")
+        add_line("  /event <type>   trigger an environmental event", style="cmd")
+        add_line("  /files [path]   list workspace files", style="cmd")
+        add_line("  /cat <file>     show file contents", style="cmd")
+        add_line("  /git [args]     run git command", style="cmd")
+        add_line("  /log [n]        last n transcript lines", style="cmd")
+        add_line("  /tree           workspace tree", style="cmd")
+        add_line("  /diff           changes since init", style="cmd")
+        add_line("  /verbose        live transcript tail", style="cmd")
+        add_line("  /quiet          stop live transcript", style="cmd")
+        add_line("  /quit           stop the agent", style="cmd")
+        add_line("", style="cmd")
+        add_line("  all input is via commands", style="cmd")
     elif verb == "/quit":
         return "quit"
     elif verb == "/reset":
