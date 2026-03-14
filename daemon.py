@@ -106,17 +106,17 @@ def main(scr):
         if not os.path.exists(born):
             open(born, "w").close()
             out("  first boot", style="dim")
-            send({"type": "message", "content": "You have just been born. Read dna.md, then read core.py and tools.py — they are you. Begin."})
+            send({"type": "birth", "content": "You have just been born. Read dna.md, then read core.py and tools.py — they are you. Begin."})
         elif last_exit[0] == RESTART_CODE:
             out("  rebooted", style="dim")
-            send({"type": "message", "content": "You just rebooted after calling restart(). Your conversation memory is gone but your transcript and files remain. Read the tail of your transcript to remember what you were doing."})
+            send({"type": "reboot", "content": "You just rebooted after calling restart(). Your conversation memory is gone but your transcript and files remain. Re-read your dna.md and the tail of your transcript to remember what you were doing."})
         elif last_exit[0] == "idle":
             last_exit[0] = None
             out("  woken up", style="dim")
-            send({"type": "message", "content": "You went idle and were restarted. You were active, then stopped producing output for too long. Your conversation memory is gone but your transcript and files remain. Read the tail of your transcript to remember what you were doing."})
+            send({"type": "idle", "content": "You went idle and were restarted. You were active, then stopped producing output for too long. Your conversation memory is gone but your transcript and files remain. Re-read your dna.md and the tail of your transcript to remember what you were doing."})
         else:
             out("  recovered", style="dim")
-            send({"type": "message", "content": "You crashed and have been restarted. Your conversation memory is gone but your transcript and files remain. Read the tail of your transcript to understand what happened."})
+            send({"type": "crash", "content": "You crashed and have been restarted. Your conversation memory is gone but your transcript and files remain. Re-read your dna.md and the tail of your transcript to understand what happened."})
 
         proc.wait(); stop.set()
         return proc.returncode
@@ -319,6 +319,20 @@ def main(scr):
                     continue
                 if isinstance(r, tuple) and r[0] == "event":
                     trigger_event(r[1].strip().lower())
+                    continue
+                if isinstance(r, tuple) and r[0] == "here":
+                    present = os.path.join(root, ".present")
+                    open(present, "w").close()
+                    os.makedirs(os.path.join(root, "outbox"), exist_ok=True)
+                    out("  you are here", style="user")
+                    send({"type": "presence", "status": "here"})
+                    continue
+                if isinstance(r, tuple) and r[0] == "away":
+                    present = os.path.join(root, ".present")
+                    try: os.remove(present)
+                    except FileNotFoundError: pass
+                    out("  you are away", style="user")
+                    send({"type": "presence", "status": "away"})
                     continue
                 if isinstance(r, tuple) and r[0] == "reboot":
                     if proc and proc.poll() is None:

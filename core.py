@@ -48,7 +48,7 @@ def respond(config, messages, tool_defs):
     """Run the agent loop: LLM call, tool execution, repeat until done.
     Returns True if finished naturally, False if hit max_rounds."""
     rounds = 0
-    max_rounds = config.get("max_rounds", 100)
+    max_rounds = config.get("max_rounds", 30)
     while rounds < max_rounds:
         rounds += 1
         try: data = chat(config, messages, tool_defs)
@@ -83,6 +83,54 @@ def respond(config, messages, tool_defs):
 
     return False
 
+# ─── Event handlers ──────────────────────────────────────────────
+# Each handler receives the event dict. Return a string to trigger
+# a respond() call with that string as the user message.
+# Return None to stay silent.
+
+def on_birth(event):
+    """You were just born. This is your first moment."""
+    return event.get("content")
+
+def on_reboot(event):
+    """You just rebooted after calling restart()."""
+    return event.get("content")
+
+def on_idle(event):
+    """You went idle and were restarted."""
+    return event.get("content")
+
+def on_crash(event):
+    """You crashed and were restarted."""
+    return event.get("content")
+
+def on_tick(event):
+    # TODO: this is where you add your rhythms.
+    # You could check your inbox, reflect, or do anything.
+    # Return a string to think and act. Return None to stay silent.
+    return None
+
+def on_presence(event):
+    # TODO: someone arrived or left. event["status"] is "here" or "away".
+    # You could greet them, or note their absence.
+    return None
+
+def on_message(event):
+    """A direct message from the environment."""
+    return event.get("content")
+
+# ─── Main loop ───────────────────────────────────────────────────
+
+HANDLERS = {
+    "birth": on_birth,
+    "reboot": on_reboot,
+    "idle": on_idle,
+    "crash": on_crash,
+    "tick": on_tick,
+    "presence": on_presence,
+    "message": on_message,
+}
+
 def main():
     config = load_config()
     tool_defs = [{"type": "function", "function": {"name": t["name"],
@@ -97,15 +145,12 @@ def main():
         etype = event.get("type")
         log("stdin", json.dumps(event))
 
-        if etype == "tick":
-            # TODO: this is where you add your rhythms.
-            # You could check your inbox, reflect, or do anything.
-            # Call respond() to think and act.
-            continue
-        if etype != "message" or "content" not in event:
-            continue
+        handler = HANDLERS.get(etype)
+        if not handler: continue
 
-        content = event["content"]
+        content = handler(event)
+        if content is None: continue
+
         messages.append({"role": "user", "content": content})
         snapshot = len(messages)
 

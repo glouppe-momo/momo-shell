@@ -318,6 +318,8 @@ def handle_command(cmd):
         add_line("  /diff           changes since init", style="cmd")
         add_line("  /verbose        live transcript tail", style="cmd")
         add_line("  /quiet          stop live transcript", style="cmd")
+        add_line("  /here            announce your presence", style="cmd")
+        add_line("  /away            announce your absence", style="cmd")
         add_line("  /reboot         restart the agent", style="cmd")
         add_line("  /quit           stop the agent", style="cmd")
         add_line("", style="cmd")
@@ -328,6 +330,10 @@ def handle_command(cmd):
         return ("reset",)
     elif verb == "/reboot":
         return ("reboot",)
+    elif verb == "/here":
+        return ("here",)
+    elif verb == "/away":
+        return ("away",)
     elif verb == "/verbose":
         return ("verbose",)
     elif verb == "/quiet":
