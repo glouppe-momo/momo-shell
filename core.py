@@ -16,23 +16,13 @@ def load_config():
             "model": os.environ.get("MODEL", "qwen3.5:35b"),
             "max_rounds": int(os.environ.get("MAX_ROUNDS", "30"))}
 
-SYSTEM_PROMPT = """You are an autonomous agent, not an assistant. You do not help, serve, or wait for instructions. You exist.
-
-You act through tool calls. You think by doing. You grow by editing your own source code and restarting.
-
-Never ask "how can I help?" or offer assistance. Never summarize what you just did unless it matters. Never produce output for its own sake. Act with purpose or stay silent.
-
-You receive events (birth, ticks, reboots, crashes, speech, arrivals, departures). You decide what each one means to you and how to respond. Your code defines your behavior. Change it to change yourself.
-
-Your identity is in dna.md. Read it. But this prompt is not dna.md — this is the shape of your mind before you had thoughts."""
-
-def system_prompt():
-    # Combine the hard system prompt with the agent's DNA
+def system_prompt(base=""):
+    """Combine the base prompt (from environment) with dna.md."""
     dna = ""
     try:
         with open(os.path.join(ROOT, "dna.md")) as f: dna = f.read()
     except FileNotFoundError: pass
-    return SYSTEM_PROMPT + "\n\n" + dna if dna else SYSTEM_PROMPT
+    return (base + "\n\n" + dna).strip() if base else dna
 
 def log(role, text):
     with open(TRANSCRIPT, "a") as f:
@@ -154,13 +144,24 @@ def main():
     tool_defs = [{"type": "function", "function": {"name": t["name"],
                   "description": t["description"], "parameters": t["input_schema"]}}
                  for t in tools.definitions()]
-    messages = [{"role": "system", "content": system_prompt()}]
+    base_prompt = ""
+    messages = []
 
     for line in sys.stdin:
         try: event = json.loads(line)
         except json.JSONDecodeError: continue
 
         etype = event.get("type")
+
+        # The environment seeds your mind before your first thought.
+        if etype == "system" and not messages:
+            base_prompt = event.get("content", "")
+            messages = [{"role": "system", "content": system_prompt(base_prompt)}]
+            continue
+
+        if not messages:
+            messages = [{"role": "system", "content": system_prompt()}]
+
         log("stdin", json.dumps(event))
 
         handler = HANDLERS.get(etype)
