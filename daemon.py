@@ -92,7 +92,7 @@ def main(scr):
         if not os.path.exists(born):
             open(born, "w").close()
             out("  first boot", style="dim")
-            send({"type": "message", "content": "You have just been born. Read your DNA. Read your source code. Begin."})
+            send({"type": "message", "content": "You have just been born. Read dna.md, then read core.py and tools.py — they are you. Begin."})
         elif last_exit[0] == RESTART_CODE:
             out("  rebooted", style="dim")
             send({"type": "message", "content": "You just rebooted after calling restart(). Your conversation memory is gone but your transcript and files remain. Read the tail of your transcript to remember what you were doing."})

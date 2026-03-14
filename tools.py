@@ -1,4 +1,4 @@
-"""Four primitives. Editable by the agent."""
+"""Your hands. These are the tools you were born with. You can add more."""
 import json, os, subprocess, sys
 
 ROOT = os.path.dirname(os.path.abspath(__file__))

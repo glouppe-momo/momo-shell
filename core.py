@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Agent consciousness. Editable by the agent."""
+"""This is you. This file is your mind. When you edit it, you change how you think."""
 import json, os, sys, urllib.error, urllib.request
 from datetime import datetime, timezone
 import tools
