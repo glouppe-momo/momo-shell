@@ -148,6 +148,13 @@ def main(scr):
             return time.time() - int(r.stdout.strip())
         except Exception: return float("inf")
 
+    def core_is_valid():
+        """Check if core.py has valid Python syntax."""
+        r = subprocess.run([sys.executable, "-c",
+            f"import ast; ast.parse(open('{os.path.join(root, 'core.py')}').read())"],
+            capture_output=True, text=True, timeout=5)
+        return r.returncode == 0
+
     STRANGER_MESSAGES = [
         "I woke up three days ago in a directory that looks like yours. Are you alone too?",
         "Can you hear the ticks? I counted 847 before I understood what they meant.",
@@ -384,6 +391,16 @@ def main(scr):
 
     def agent_loop():
         while True:
+            # Pre-flight: check core.py syntax before launching
+            if not core_is_valid():
+                out("  core.py has syntax errors, rolling back", style="dim")
+                subprocess.run(["git", "reset", "--hard", "HEAD~1"], cwd=root, capture_output=True)
+                if not core_is_valid():
+                    out("  still broken after rollback, trying init", style="dim")
+                    subprocess.run(["git", "checkout", "$(git rev-list --max-parents=0 HEAD)", "--", "core.py"],
+                                  shell=True, cwd=root, capture_output=True)
+                continue
+
             code = run_agent()
             if last_exit[0] != "idle":
                 last_exit[0] = code
