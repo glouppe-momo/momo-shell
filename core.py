@@ -99,16 +99,10 @@ def main():
         if etype == "tick":
             # No rhythms yet. The agent edits this to add its own.
             continue
-
-        if etype == "birth":
-            content = "You have just been born. Read your DNA. Read your source code. Begin."
-        elif etype == "reboot":
-            content = "You just rebooted after calling restart(). Your conversation memory is gone but your transcript and files remain. Read the tail of your transcript to remember what you were doing."
-        elif etype == "crash":
-            content = "You crashed and have been restarted. Your conversation memory is gone but your transcript and files remain. Read the tail of your transcript to understand what happened."
-        else:
+        if etype != "message" or "content" not in event:
             continue
 
+        content = event["content"]
         log("system", content)
         messages.append({"role": "user", "content": content})
         snapshot = len(messages)

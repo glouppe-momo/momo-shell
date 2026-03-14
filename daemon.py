@@ -93,13 +93,13 @@ def main():
         if not os.path.exists(born):
             open(born, "w").close()
             out("first boot", dim=True)
-            send({"type": "birth"})
+            send({"type": "message", "content": "You have just been born. Read your DNA. Read your source code. Begin."})
         elif last_exit[0] == RESTART_CODE:
             out("rebooted", dim=True)
-            send({"type": "reboot"})
+            send({"type": "message", "content": "You just rebooted after calling restart(). Your conversation memory is gone but your transcript and files remain. Read the tail of your transcript to remember what you were doing."})
         else:
             out("recovered", dim=True)
-            send({"type": "crash"})
+            send({"type": "message", "content": "You crashed and have been restarted. Your conversation memory is gone but your transcript and files remain. Read the tail of your transcript to understand what happened."})
 
         proc.wait(); stop.set()
         return proc.returncode
