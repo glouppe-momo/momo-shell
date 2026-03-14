@@ -308,6 +308,9 @@ def main(scr):
                     if proc and proc.poll() is None: proc.terminate()
                     cli.stop()
                     return
+                if isinstance(r, tuple) and r[0] == "mail":
+                    drop_message(r[1])
+                    continue
                 if isinstance(r, tuple) and r[0] == "say":
                     out(f"  → stdin: {r[1]}", style="dim")
                     send({"type": "message", "content": r[1]})
@@ -328,7 +331,7 @@ def main(scr):
                     out("  verbose mode off", style="dim")
                     continue
                 if r: continue
-            drop_message(line.strip())
+            out(f"  unknown command. type /help", style="dim")
     threading.Thread(target=input_loop, daemon=True).start()
 
     def agent_loop():

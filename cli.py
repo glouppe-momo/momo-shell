@@ -39,7 +39,7 @@ class TUI:
         scr.timeout(100)
         scr.keypad(True)
         self.add_line("🌱 seedling", style="dim")
-        self.add_line("type to drop a message in inbox · /say to send to stdin · /help for commands", style="dim")
+        self.add_line("/help for commands · /mail to message · /say to inject stdin", style="dim")
         self.add_line("", style="dim")
         self._loop()
 
@@ -267,6 +267,7 @@ def handle_command(cmd):
 
     if verb == "/help":
         add_line("─── commands ───", style="dim")
+        add_line("  /mail <text>    drop message in inbox", style="dim")
         add_line("  /say <text>     send directly to agent stdin", style="dim")
         add_line("  /event <type>   trigger an environmental event", style="dim")
         add_line("  /files [path]   list workspace files", style="dim")
@@ -279,8 +280,7 @@ def handle_command(cmd):
         add_line("  /quiet          stop live transcript", style="dim")
         add_line("  /quit           stop the agent", style="dim")
         add_line("", style="dim")
-        add_line("  bare text → drops file in inbox", style="dim")
-        add_line("  /say    → injects message into stdin", style="dim")
+        add_line("  all input is via commands", style="dim")
     elif verb == "/quit":
         return "quit"
     elif verb == "/verbose":
@@ -293,6 +293,11 @@ def handle_command(cmd):
             add_line("          whisper, question, mirror, tick, echo", style="dim")
             return True
         return ("event", arg)
+    elif verb == "/mail":
+        if not arg:
+            add_line("  usage: /mail <message>", style="dim")
+            return True
+        return ("mail", arg)
     elif verb == "/say":
         if not arg:
             add_line("  usage: /say <message>", style="dim")
