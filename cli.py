@@ -36,6 +36,7 @@ class TUI:
         curses.init_pair(2, curses.COLOR_BLACK, curses.COLOR_WHITE)  # status bar
         curses.init_pair(3, curses.COLOR_YELLOW, -1)   # dim
         curses.init_pair(4, curses.COLOR_GREEN, -1)    # user
+        curses.init_pair(5, curses.COLOR_BLUE, -1)     # command output
         curses.curs_set(1)
         scr.timeout(100)
         scr.keypad(True)
@@ -108,6 +109,8 @@ class TUI:
                                 self.scr.addstr(row, 0, chunk, curses.A_BOLD)
                             elif style == "user":
                                 self.scr.addstr(row, 0, chunk, curses.color_pair(4))
+                            elif style == "cmd":
+                                self.scr.addstr(row, 0, chunk, curses.color_pair(5))
                             else:
                                 self.scr.addstr(row, 0, chunk)
                         except curses.error:
@@ -311,9 +314,8 @@ def handle_command(cmd):
         try:
             for e in sorted(os.listdir(path)):
                 if e.startswith(".") or e == "__pycache__": continue
-                style = "bold" if os.path.isdir(os.path.join(path, e)) else None
                 name = f"  {e}/" if os.path.isdir(os.path.join(path, e)) else f"  {e}"
-                add_line(name, style=style)
+                add_line(name, style="cmd")
         except Exception as e:
             add_line(f"  error: {e}", style="dim")
     elif verb == "/cat":
@@ -322,17 +324,17 @@ def handle_command(cmd):
             return True
         try:
             with open(os.path.join(ROOT, arg)) as f: content = f.read()
-            add_line(f"─── {arg} ───", style="dim")
+            add_line(f"─── {arg} ───", style="cmd")
             for line in content.rstrip().splitlines():
-                add_line(f"  {line}")
-            add_line("───", style="dim")
+                add_line(f"  {line}", style="cmd")
+            add_line("───", style="cmd")
         except Exception as e:
             add_line(f"  error: {e}", style="dim")
     elif verb == "/git":
         r = subprocess.run(f"git {arg or 'log --oneline -20'}", shell=True,
                           capture_output=True, text=True, cwd=ROOT)
         for line in (r.stdout or "(no output)").rstrip().splitlines():
-            add_line(f"  {line}", style="dim")
+            add_line(f"  {line}", style="cmd")
     elif verb == "/log":
         n = int(arg) if arg else 20
         try:
@@ -342,9 +344,9 @@ def handle_command(cmd):
                 if "] system:" in line or "] stdin:" in line:
                     add_line(f"  {line}", style="bold")
                 elif "] assistant:" in line:
-                    add_line(f"  {line}")
+                    add_line(f"  {line}", style="cmd")
                 else:
-                    add_line(f"  {line}", style="dim")
+                    add_line(f"  {line}", style="cmd")
         except FileNotFoundError:
             add_line("  no transcript yet", style="dim")
     elif verb == "/tree":
@@ -352,12 +354,12 @@ def handle_command(cmd):
                           "-not -path './__pycache__/*' -not -name __pycache__ | sort | tail -n+2",
                           shell=True, capture_output=True, text=True, cwd=ROOT)
         for line in (r.stdout or "(empty)").rstrip().splitlines():
-            add_line(f"  {line}", style="dim")
+            add_line(f"  {line}", style="cmd")
     elif verb == "/diff":
         r = subprocess.run("git diff --stat $(git rev-list --max-parents=0 HEAD)..HEAD 2>/dev/null || echo 'no history'",
                           shell=True, capture_output=True, text=True, cwd=ROOT)
         for line in (r.stdout or "(none)").rstrip().splitlines():
-            add_line(f"  {line}", style="dim")
+            add_line(f"  {line}", style="cmd")
     else:
         return False
     return True
