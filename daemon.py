@@ -314,8 +314,8 @@ def main(scr):
                     drop_message(r[1])
                     continue
                 if isinstance(r, tuple) and r[0] == "say":
-                    out(f"  you → stdin: {r[1]}", style="user")
-                    send({"type": "message", "content": r[1]})
+                    out(f"  you → say: {r[1]}", style="user")
+                    send({"type": "say", "content": r[1]})
                     continue
                 if isinstance(r, tuple) and r[0] == "event":
                     trigger_event(r[1].strip().lower())

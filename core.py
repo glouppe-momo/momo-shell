@@ -115,8 +115,8 @@ def on_presence(event):
     # You could greet them, or note their absence.
     return None
 
-def on_message(event):
-    """A direct message from the environment."""
+def on_say(event):
+    """The human is speaking directly to you."""
     return event.get("content")
 
 # ─── Main loop ───────────────────────────────────────────────────
@@ -128,7 +128,7 @@ HANDLERS = {
     "crash": on_crash,
     "tick": on_tick,
     "presence": on_presence,
-    "message": on_message,
+    "say": on_say,
 }
 
 def main():
