@@ -82,6 +82,7 @@ def main(scr):
 
         def on_stderr(text):
             if text.startswith("[status:"):
+                was_active[0] = True  # agent is doing something
                 status = text[8:-1] if text.endswith("]") else text[8:]
                 cli.set_status(status)
             else:
