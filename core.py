@@ -45,7 +45,8 @@ def trim(messages, keep=30):
     return [messages[0], tail[-1]]
 
 def respond(config, messages, tool_defs):
-    """Run the agent loop: LLM call, tool execution, repeat until done."""
+    """Run the agent loop: LLM call, tool execution, repeat until done.
+    Returns True if finished naturally, False if hit max_rounds."""
     rounds = 0
     max_rounds = config.get("max_rounds", 100)
     while rounds < max_rounds:
@@ -67,7 +68,7 @@ def respond(config, messages, tool_defs):
             log("assistant", text)
         if not tc:
             messages.append({"role": "assistant", "content": text})
-            break
+            return True
 
         messages.append(msg)
         for c in tc:
@@ -79,6 +80,9 @@ def respond(config, messages, tool_defs):
             except Exception as e: result = f"Error: {e}"
             log("tool_result", f"{fn} → {result[:500]}")
             messages.append({"role": "tool", "tool_call_id": c.get("id", ""), "content": result})
+
+    log("system", "[max rounds reached, restarting]")
+    sys.exit(42)
 
 def main():
     config = load_config()
