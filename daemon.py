@@ -319,6 +319,11 @@ def main(scr):
                 if isinstance(r, tuple) and r[0] == "event":
                     trigger_event(r[1].strip().lower())
                     continue
+                if isinstance(r, tuple) and r[0] == "reboot":
+                    if proc and proc.poll() is None:
+                        out("  rebooting agent...", style="dim")
+                        proc.terminate()
+                    continue
                 if isinstance(r, tuple) and r[0] == "reset":
                     cli.reset()
                     continue
