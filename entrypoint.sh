@@ -8,9 +8,13 @@ fi
 # Agent owns its workspace (every boot, in case daemon created files as root)
 chown -R agent:agent /agent
 
+# Git safe directory for both root (daemon/CLI) and agent user
+git config --global --add safe.directory /agent
+su agent -c 'git config --global --add safe.directory /agent'
+
 # Init git if needed (as agent user)
 if [ ! -d /agent/.git ]; then
-    su agent -c 'cd /agent && git config --global --add safe.directory /agent && git init -q && git config user.name "agent" && git config user.email "agent@localhost" && git add -A && git commit -m "init" -q'
+    su agent -c 'cd /agent && git init -q && git config user.name "agent" && git config user.email "agent@localhost" && git add -A && git commit -m "init" -q'
 fi
 
 # Daemon runs as root, agent subprocess runs as agent user
