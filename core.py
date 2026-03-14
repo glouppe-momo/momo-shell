@@ -98,7 +98,9 @@ def main():
         log("stdin", json.dumps(event))
 
         if etype == "tick":
-            # No rhythms yet. The agent edits this to add its own.
+            # TODO: this is where you add your rhythms.
+            # You could check your inbox, reflect, or do anything.
+            # Call respond() to think and act.
             continue
         if etype != "message" or "content" not in event:
             continue
