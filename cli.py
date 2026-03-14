@@ -244,6 +244,7 @@ def handle_command(cmd):
     if verb == "/help":
         add_line("─── commands ───", style="dim")
         add_line("  /say <text>     send directly to agent stdin", style="dim")
+        add_line("  /event <type>   trigger an environmental event", style="dim")
         add_line("  /files [path]   list workspace files", style="dim")
         add_line("  /cat <file>     show file contents", style="dim")
         add_line("  /git [args]     run git command", style="dim")
@@ -256,6 +257,11 @@ def handle_command(cmd):
         add_line("  /say    → injects message into stdin", style="dim")
     elif verb == "/quit":
         return "quit"
+    elif verb.startswith("/event"):
+        if not arg:
+            add_line("  events: stranger, gift, quake, phantom, signal, pressure", style="dim")
+            return True
+        return ("event", arg)
     elif verb == "/say":
         if not arg:
             add_line("  usage: /say <message>", style="dim")

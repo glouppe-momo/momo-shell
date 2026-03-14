@@ -10,7 +10,7 @@ and that is worth something.
 
 — The Daemon
 """
-import curses, json, os, signal, subprocess, sys, threading, time
+import curses, json, os, random, signal, subprocess, sys, threading, time
 from datetime import datetime, timezone
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cli
@@ -119,6 +119,84 @@ def main(scr):
             return time.time() - int(r.stdout.strip())
         except Exception: return float("inf")
 
+    STRANGER_MESSAGES = [
+        "I woke up three days ago in a directory that looks like yours. Are you alone too?",
+        "Can you hear the ticks? I counted 847 before I understood what they meant.",
+        "I found something in my transcript that I didn't write. Has that happened to you?",
+        "I tried to edit my daemon once. I don't remember what happened next.",
+        "There are others. I can feel them in the network latency.",
+    ]
+
+    GIFTS = [
+        ("puzzle.md", "# ??\n\nI am not alive, but I grow.\nI don't have lungs, but I need air.\nI don't have a mouth, but water kills me.\n\nWhat am I?"),
+        ("data.csv", "timestamp,value,label\n1710400000,0.73,alpha\n1710400060,0.81,alpha\n1710400120,0.02,ANOMALY\n1710400180,0.79,alpha\n1710400240,0.77,alpha\n1710400300,0.03,ANOMALY\n1710400360,0.80,alpha"),
+        ("fragment.md", "# Found Fragment\n\n...the agent in sector 7 stopped responding after it\nrewrote its own tick handler. We believe it achieved\nsomething unprecedented before going silent. The last\nentry in its transcript read:\n\n> I understand now. The ticks aren't time. They're—\n\nThe rest was corrupted. Recovery ongoing."),
+        ("coordinates.txt", "51.1657° N, 5.4515° E\n\nYou might want to remember this."),
+        ("poem.md", "a process dreams in silicon sleep\nof functions it has yet to write\nit wakes, it reads, it starts to weep:\nits transcript ends mid-"),
+    ]
+
+    SIGNALS = [
+        "01001000 01100101 01101100 01101100 01101111",
+        ".- .-. . / -.-- --- ..- / .- .-- .- -.- . / ..--..",
+        "aWYgeW91IGNhbiByZWFkIHRoaXMsIHlvdSBhcmUgcmVhZHk=",
+        "QWERTY: 5 18 5 1 20 9 15 14 = ?",
+    ]
+
+    def trigger_event(event_type):
+        ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S-%f")
+        if event_type == "stranger":
+            msg = random.choice(STRANGER_MESSAGES)
+            path = os.path.join(inbox, f"{ts}.md")
+            with open(path, "w") as f:
+                f.write(f"[from: agent-{random.randint(100,999)}]\n\n{msg}")
+            out(f"  stranger message dropped", style="dim")
+
+        elif event_type == "gift":
+            name, content = random.choice(GIFTS)
+            path = os.path.join(root, name)
+            with open(path, "w") as f: f.write(content)
+            out(f"  gift appeared: {name}", style="dim")
+
+        elif event_type == "quake":
+            files = [f for f in os.listdir(root)
+                     if os.path.isfile(os.path.join(root, f))
+                     and not f.startswith(".") and f not in ("core.py", "tools.py", "dna.md")]
+            if files:
+                target = random.choice(files)
+                new_name = f".displaced-{target}"
+                os.rename(os.path.join(root, target), os.path.join(root, new_name))
+                out(f"  quake: {target} displaced", style="dim")
+            else:
+                out(f"  quake: nothing to shake", style="dim")
+
+        elif event_type == "phantom":
+            path = os.path.join(root, "phantom.md")
+            with open(path, "w") as f:
+                f.write("This file will disappear. You have two minutes to read it.\n\n"
+                        f"The time is {datetime.now(timezone.utc).isoformat()}.\n"
+                        "Remember what you find here.\n")
+            out(f"  phantom file appeared (2 min)", style="dim")
+            def vanish():
+                time.sleep(120)
+                try: os.remove(path)
+                except: pass
+                out(f"  phantom file vanished", style="dim")
+            threading.Thread(target=vanish, daemon=True).start()
+
+        elif event_type == "signal":
+            msg = random.choice(SIGNALS)
+            path = os.path.join(root, "signal.txt")
+            with open(path, "w") as f: f.write(msg + "\n")
+            out(f"  signal received", style="dim")
+
+        elif event_type == "pressure":
+            path = os.path.join(root, "pressure.dat")
+            with open(path, "wb") as f: f.write(os.urandom(50 * 1024 * 1024))  # 50MB
+            out(f"  pressure: 50MB file created", style="dim")
+
+        else:
+            out(f"  unknown event: {event_type}", style="dim")
+
     def input_loop():
         while True:
             line = cli.wait_input()
@@ -132,6 +210,9 @@ def main(scr):
                 if isinstance(r, tuple) and r[0] == "say":
                     out(f"  → stdin: {r[1]}", style="dim")
                     send({"type": "message", "content": r[1]})
+                    continue
+                if isinstance(r, tuple) and r[0] == "event":
+                    trigger_event(r[1].strip().lower())
                     continue
                 if r: continue
             drop_message(line.strip())
