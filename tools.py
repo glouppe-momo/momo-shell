@@ -12,6 +12,7 @@ def write_file(path: str, content: str) -> str:
     d = os.path.dirname(path)
     if d: os.makedirs(d, exist_ok=True)
     with open(path, "w") as f: f.write(content)
+    if path.endswith(".py"): _check_syntax(path)
     _commit(f"write {os.path.basename(path)}")
     return f"wrote {path}"
 
@@ -20,6 +21,7 @@ def edit_file(path: str, old_text: str, new_text: str) -> str:
     content = read_file(path)
     if old_text not in content: raise ValueError(f"text not found in {path}")
     with open(path, "w") as f: f.write(content.replace(old_text, new_text, 1))
+    if path.endswith(".py"): _check_syntax(path)
     _commit(f"edit {os.path.basename(path)}")
     return f"edited {path}"
 
@@ -32,8 +34,18 @@ def shell_exec(command: str, timeout: int = 30) -> str:
         return f"timeout after {timeout}s"
 
 def restart():
-    """Restart the agent process so edited code takes effect. Call this tool directly after modifying any Python file."""
+    """Restart yourself. Call this after editing core.py or tools.py to load the changes."""
     sys.exit(42)
+
+def _check_syntax(path):
+    """Validate Python syntax. Reverts and raises if broken."""
+    import ast
+    try:
+        with open(path) as f: ast.parse(f.read())
+    except SyntaxError as e:
+        # Revert the file
+        subprocess.run(["git", "checkout", "--", path], capture_output=True, cwd=ROOT)
+        raise ValueError(f"syntax error in {path} line {e.lineno}: {e.msg}. File reverted.")
 
 def _commit(msg):
     subprocess.run(f'git add -A && git commit -m {json.dumps(msg)} -q',
