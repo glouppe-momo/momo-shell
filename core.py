@@ -95,6 +95,7 @@ def main():
         except json.JSONDecodeError: continue
 
         etype = event.get("type")
+        log("stdin", json.dumps(event))
 
         if etype == "tick":
             # No rhythms yet. The agent edits this to add its own.
@@ -103,7 +104,6 @@ def main():
             continue
 
         content = event["content"]
-        log("system", content)
         messages.append({"role": "user", "content": content})
         snapshot = len(messages)
 
