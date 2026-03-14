@@ -251,12 +251,18 @@ def handle_command(cmd):
         add_line("  /log [n]        last n transcript lines", style="dim")
         add_line("  /tree           workspace tree", style="dim")
         add_line("  /diff           changes since init", style="dim")
+        add_line("  /verbose        live transcript tail", style="dim")
+        add_line("  /quiet          stop live transcript", style="dim")
         add_line("  /quit           stop the agent", style="dim")
         add_line("", style="dim")
         add_line("  bare text → drops file in inbox", style="dim")
         add_line("  /say    → injects message into stdin", style="dim")
     elif verb == "/quit":
         return "quit"
+    elif verb == "/verbose":
+        return ("verbose",)
+    elif verb == "/quiet":
+        return ("quiet",)
     elif verb.startswith("/event"):
         if not arg:
             add_line("  events: stranger, gift, quake, phantom, signal, pressure,", style="dim")

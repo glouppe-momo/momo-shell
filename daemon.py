@@ -29,6 +29,8 @@ def main(scr):
     last_exit = [None]
     last_activity = [0.0]
     was_active = [False]
+    verbose = [False]
+    verbose_thread = [None]
 
     def on_signal(sig, _):
         if proc and proc.poll() is None: proc.terminate()
@@ -267,6 +269,31 @@ def main(scr):
         else:
             out(f"  unknown event: {event_type}", style="dim")
 
+    def transcript_tail():
+        """Tail the transcript file and display new lines."""
+        tpath = os.path.join(root, "transcript.log")
+        try:
+            with open(tpath) as f:
+                f.seek(0, 2)  # seek to end
+                while verbose[0]:
+                    line = f.readline()
+                    if line:
+                        line = line.rstrip()
+                        if "] assistant:" in line:
+                            out(f"  📝 {line}", style=None)
+                        elif "] tool_call:" in line:
+                            out(f"  🔧 {line}", style="dim")
+                        elif "] tool_result:" in line:
+                            out(f"  ← {line}", style="dim")
+                        elif "] stdin:" in line:
+                            out(f"  ⚡ {line}", style="bold")
+                        else:
+                            out(f"  · {line}", style="dim")
+                    else:
+                        time.sleep(0.3)
+        except FileNotFoundError:
+            out("  no transcript yet", style="dim")
+
     def input_loop():
         while True:
             line = cli.wait_input()
@@ -283,6 +310,18 @@ def main(scr):
                     continue
                 if isinstance(r, tuple) and r[0] == "event":
                     trigger_event(r[1].strip().lower())
+                    continue
+                if isinstance(r, tuple) and r[0] == "verbose":
+                    if not verbose[0]:
+                        verbose[0] = True
+                        t = threading.Thread(target=transcript_tail, daemon=True)
+                        verbose_thread[0] = t
+                        t.start()
+                        out("  verbose mode on", style="dim")
+                    continue
+                if isinstance(r, tuple) and r[0] == "quiet":
+                    verbose[0] = False
+                    out("  verbose mode off", style="dim")
                     continue
                 if r: continue
             drop_message(line.strip())
