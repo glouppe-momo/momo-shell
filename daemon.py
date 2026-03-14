@@ -97,6 +97,7 @@ def main(scr):
                 if was_active[0] and (time.time() - last_activity[0]) > IDLE_TIMEOUT:
                     if proc.poll() is None:
                         out("  idle too long, restarting", style="dim")
+                        last_exit[0] = "idle"
                         proc.terminate()
         threading.Thread(target=watchdog, daemon=True).start()
 
@@ -108,6 +109,9 @@ def main(scr):
         elif last_exit[0] == RESTART_CODE:
             out("  rebooted", style="dim")
             send({"type": "message", "content": "You just rebooted after calling restart(). Your conversation memory is gone but your transcript and files remain. Read the tail of your transcript to remember what you were doing."})
+        elif last_exit[0] == "idle":
+            out("  woken up", style="dim")
+            send({"type": "message", "content": "You went idle and were restarted. You were active, then stopped producing output for too long. Your conversation memory is gone but your transcript and files remain. Read the tail of your transcript to remember what you were doing."})
         else:
             out("  recovered", style="dim")
             send({"type": "message", "content": "You crashed and have been restarted. Your conversation memory is gone but your transcript and files remain. Read the tail of your transcript to understand what happened."})
