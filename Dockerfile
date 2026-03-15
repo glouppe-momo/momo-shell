@@ -1,9 +1,12 @@
 FROM python:3.12-slim
 
+ARG AGENT_UID=1000
+ARG AGENT_GID=1000
+
 RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
 
-# Agent user (unprivileged)
-RUN useradd -m -s /bin/bash agent
+# Agent user (unprivileged, UID/GID match host user)
+RUN groupadd -g $AGENT_GID agent && useradd -m -s /bin/bash -u $AGENT_UID -g $AGENT_GID agent
 
 # Environment (daemon + CLI) — invisible to the agent
 COPY daemon.py cli.py /app/

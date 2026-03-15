@@ -13,7 +13,7 @@ Run it in Docker. Do not run it on bare metal with access to anything you care a
 ## Quick start
 
 ```bash
-docker build -t seedling .
+docker build -t seedling --build-arg AGENT_UID=$(id -u) --build-arg AGENT_GID=$(id -g) .
 
 # First time: create isolated network (needs sudo for iptables)
 sudo sh network-setup.sh
