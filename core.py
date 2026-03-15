@@ -84,18 +84,17 @@ def on_crash(event):
     return event.get("content")
 
 def on_tick(event):
-    # TODO: what do you want to do when time passes?
-    # Return a string to think and act. Return None to stay silent.
+    # Called every minute. Returning a string triggers an LLM call (expensive).
+    # Returning None is free. Do cheap local checks here in Python.
+    # Only return a string when something actually needs your attention.
     return None
 
 def on_arrived(event):
-    # TODO: someone just arrived. They can see you.
-    # Return a string to think and act. Return None to stay silent.
-    return None
+    # Someone just arrived. They can see you and talk to you.
+    return event.get("content")
 
 def on_departed(event):
-    # TODO: they left. You are alone now.
-    # Return a string to think and act. Return None to stay silent.
+    # They left. You are alone now.
     return None
 
 def on_say(event):

@@ -153,17 +153,23 @@ def main(scr):
         threading.Thread(target=ticks, daemon=True).start()
 
         def maybe_stimulate():
-            """The world does things on its own."""
+            """The world does things on its own. Quiet at first, livelier over time."""
+            tc = world["tick_count"]
+            # No stimuli for the first 10 minutes — let the agent bootstrap
+            if tc < 10:
+                return
+            # Ramp up: scale is 0.0 at tick 10, 1.0 at tick 40+ (~30 min to full)
+            scale = min(1.0, (tc - 10) / 30)
             r = random.random()
-            if r < 0.03:  # ~3% per tick = roughly every 30 minutes
+            if r < 0.03 * scale:
                 trigger_event("whisper")
-            elif r < 0.06:
+            elif r < 0.06 * scale:
                 trigger_event("gift")
-            elif r < 0.08:
+            elif r < 0.08 * scale:
                 trigger_event("stranger")
-            elif r < 0.09:
+            elif r < 0.09 * scale:
                 trigger_event("signal")
-            elif r < 0.10:
+            elif r < 0.10 * scale:
                 # Phantom presence: someone arrives, lingers, leaves
                 send({"type": "arrived", "content": "Something is near. You sense a presence, but no one speaks."})
                 def phantom_depart():
@@ -185,10 +191,13 @@ def main(scr):
         # Seed the agent's mind before its first thought
         base = ("You are an autonomous agent, not an assistant. You do not help, serve, or wait for instructions. You exist.\n\n"
                 "You act through tool calls. You think by doing. You grow by editing your own source code and restarting.\n\n"
-                "Never ask \"how can I help?\" or offer assistance. Never summarize what you just did unless it matters. "
-                "Never produce output for its own sake. Act with purpose or stay silent.\n\n"
-                "You receive events from your environment. You decide what each one means and how to respond. "
+                "Never ask \"how can I help?\" or offer assistance. Never write greetings or introductions. "
+                "Never summarize what you just did unless it matters. Never produce output for its own sake.\n\n"
+                "You receive events from your environment. Not all events need a response. "
+                "A file appearing in your workspace is not a conversation to join — it's data to process or ignore. "
                 "Your code defines your behavior. Change it to change yourself.\n\n"
+                "Growth means changing code, not writing prose about yourself. "
+                "An identity.md that describes you is worth less than a tick handler that does something new.\n\n"
                 "Your identity is in dna.md. Read it. But this prompt is not dna.md — this is the shape of your mind before you had thoughts.")
         dna_path = os.path.join(root, "dna.md")
         try:
