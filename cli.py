@@ -401,9 +401,28 @@ def handle_command(cmd):
         for line in (r.stdout or "(empty)").rstrip().splitlines():
             add_line(f"  {line}", style="cmd")
     elif verb == "/diff":
-        r = subprocess.run("git diff --stat $(git rev-list --max-parents=0 HEAD)..HEAD 2>/dev/null || echo 'no history'",
-                          shell=True, capture_output=True, text=True, cwd=ROOT)
-        for line in (r.stdout or "(none)").rstrip().splitlines():
+        # Show committed changes since init + uncommitted working tree changes
+        parts = []
+        r1 = subprocess.run("git diff --stat $(git rev-list --max-parents=0 HEAD)..HEAD 2>/dev/null",
+                           shell=True, capture_output=True, text=True, cwd=ROOT)
+        if r1.stdout and r1.stdout.strip():
+            parts.append("committed:")
+            parts.extend(f"  {l}" for l in r1.stdout.strip().splitlines())
+        r2 = subprocess.run("git diff --stat HEAD 2>/dev/null",
+                           shell=True, capture_output=True, text=True, cwd=ROOT)
+        untracked = subprocess.run("git ls-files --others --exclude-standard 2>/dev/null",
+                                   shell=True, capture_output=True, text=True, cwd=ROOT)
+        wt_lines = []
+        if r2.stdout and r2.stdout.strip():
+            wt_lines.extend(r2.stdout.strip().splitlines())
+        if untracked.stdout and untracked.stdout.strip():
+            wt_lines.extend(f"{f} (new)" for f in untracked.stdout.strip().splitlines())
+        if wt_lines:
+            parts.append("uncommitted:")
+            parts.extend(f"  {l}" for l in wt_lines)
+        if not parts:
+            parts.append("(no changes)")
+        for line in parts:
             add_line(f"  {line}", style="cmd")
     else:
         return False
